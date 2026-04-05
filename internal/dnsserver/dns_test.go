@@ -1,6 +1,7 @@
 package dnsserver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
@@ -41,7 +42,7 @@ func TestDNSServer_SinkholeResponses(t *testing.T) {
 		errCh <- s.server.ActivateAndServe()
 	}()
 	defer func() {
-		err = s.Shutdown(nil)
+		err = s.Shutdown(context.Background())
 		if err != nil {
 			// failed to shutdown server with error
 			t.Fatalf("Shutdown: %v", err)

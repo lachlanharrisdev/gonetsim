@@ -23,13 +23,6 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	defer func() {
-		if err := ln.Close(); err != nil {
-			// failed to close listener with error
-			t.Fatalf("close: %v", err)
-		}
-	}()
-
 	s, err := New(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil)
 	if err != nil {
 		// failed to create server with error
@@ -94,13 +87,6 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		// failed to listen on a local port with error
 		t.Fatalf("listen: %v", err)
 	}
-
-	defer func() {
-		if err := ln.Close(); err != nil {
-			// failed to close listener with error
-			t.Fatalf("close: %v", err)
-		}
-	}()
 
 	cert, err := tlsutil.GenerateSelfSigned(tlsutil.SelfSignedOptions{DNSNames: []string{"localhost"}})
 	if err != nil {
