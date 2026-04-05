@@ -1,22 +1,23 @@
 <div align="center">
 
+  <img src=".github/logo_transparent.png" width="100" height="135"/>
+
   <h1 align="center">GoNetSim</h1>
 
   <p align="center" width="100">
     Go Network Simulator. A spiritual, unofficial successor to the <a href="https://www.inetsim.org/"><code>inetsim</code> project</a>, providing a suite of tools for simulating common internet services in a controlled environment.
     <br />
   </p>
-  <div align="center" width="50">
+  <p align="center" width="50">
     
   [![GitHub Repo stars](https://img.shields.io/github/stars/lachlanharrisdev/gonetsim?style=social)](https://github.com/lachlanharrisdev/gonetsim/stargazers)
   [![GitHub](https://img.shields.io/github/license/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/?tab=Apache-2.0-1-ov-file)
   [![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/)
-  [![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)](https://github.com/lachlanharrisdev/gonetsim/actions)
+  [![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)](https://github.com/lachlanharrisdev/gonetsim/actions)<br/>
   [![GitHub Release Status](https://img.shields.io/github/v/release/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/releases/latest)
   [![Go Report Card](https://goreportcard.com/badge/github.com/lachlanharrisdev/gonetsim)](https://goreportcard.com/report/github.com/lachlanharrisdev/gonetsim)
     
-  </div>
-
+  </p>
 </div>
 
 <br/>
@@ -25,13 +26,13 @@
 
 `gonetsim` runs the main services (DNS + HTTP + HTTPS).
 
-```bash
+```yaml
 gonetsim
 ```
 
 Alternatively, you can specify a single service to run
 
-```bash
+```yaml
 gonetsim dns
 gonetsim http
 gonetsim https
@@ -53,7 +54,7 @@ Default search locations:
 
 To use a specific config file:
 
-```bash
+```yaml
 gonetsim --config /path/to/gonetsim.toml
 ```
 
