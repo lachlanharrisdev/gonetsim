@@ -10,19 +10,26 @@ import (
 var (
 	Revision = "dev"
 	Version  = "dev"
+	Date     = "unknown"
 )
 
-func getVersion() string {
+func GetVersion() string {
 	return fmt.Sprintf(`Version: %s
 Revision: %s
+Date: %s
 OS: %s
-Arch: %s`, Version, Revision, runtime.GOOS, runtime.GOARCH)
+Arch: %s`, Version, Revision, Date, runtime.GOOS, runtime.GOARCH)
+}
+
+// alternative that returns a single line string
+func GetVersionLine() string {
+	return fmt.Sprintf("%s (%s %s)", Version, runtime.GOOS, runtime.GOARCH)
 }
 
 var versionCmd = &cobra.Command{
 	Use: "version",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(getVersion())
+		fmt.Println(GetVersion())
 	},
 	Short: "Show version info",
 }

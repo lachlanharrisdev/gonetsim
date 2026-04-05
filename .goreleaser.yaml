@@ -26,8 +26,9 @@ builds:
       - darwin
     ldflags:
       - -s -w
-      - -X github.com/skanehira/rtty/cmd.Version={{.Version}}
-      - -X github.com/skanehira/rtty/cmd.Revision={{.ShortCommit}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Version={{.Version}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Revision={{.ShortCommit}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.BuildDate={{.Date}}
 
 archives:
   - formats: tar.gz
