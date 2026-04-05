@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
 )
 
@@ -9,6 +10,11 @@ func parseAddrPort(listen string) (string, error) {
 	if listen == "" {
 		return "", fmt.Errorf("listen address is required")
 	}
+
+	if _, err := net.ResolveTCPAddr("tcp", listen); err != nil {
+		return "", fmt.Errorf("invalid listen address %q (expected host:port): %w", listen, err)
+	}
+
 	return listen, nil
 }
 
