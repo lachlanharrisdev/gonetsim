@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-	fmt.Println(fmt.Sprintf("== GoNetSim %s. Copyright (c) 2026 Lachlan Harris ==", cmd.GetVersionLine()))
-	fmt.Println("")
+	fmt.Printf("== GoNetSim %s. Copyright (c) 2026 Lachlan Harris ==\n\n", cmd.GetVersionLine())
 	cmd.Execute()
 }

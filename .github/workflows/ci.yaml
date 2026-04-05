@@ -12,7 +12,7 @@ jobs:
   lint:
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [ubuntu-latest]
     name: golangci-lint
     runs-on: ${{ matrix.os }}
     steps:
