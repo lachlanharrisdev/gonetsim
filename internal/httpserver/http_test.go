@@ -22,7 +22,13 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		// failed to listen on a local port with error
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+
+	defer func() {
+		if err := ln.Close(); err != nil {
+			// failed to close listener with error
+			t.Fatalf("close: %v", err)
+		}
+	}()
 
 	s, err := New(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil)
 	if err != nil {
@@ -40,7 +46,13 @@ func TestHTTPServer_Smoke(t *testing.T) {
 
 	url := "http://" + ln.Addr().String() + "/hello"
 	resp := mustGet(t, http.DefaultClient, url)
-	defer resp.Body.Close()
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// failed to close response body with error
+			t.Fatalf("close: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		// failed to get expected status code
@@ -82,7 +94,13 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		// failed to listen on a local port with error
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+
+	defer func() {
+		if err := ln.Close(); err != nil {
+			// failed to close listener with error
+			t.Fatalf("close: %v", err)
+		}
+	}()
 
 	cert, err := tlsutil.GenerateSelfSigned(tlsutil.SelfSignedOptions{DNSNames: []string{"localhost"}})
 	if err != nil {
@@ -118,7 +136,12 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 
 	url := "https://localhost:" + portFromAddr(t, ln.Addr().String()) + "/secure"
 	resp := mustGet(t, client, url)
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// failed to close response body with error
+			t.Fatalf("close: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		// failed to get expected status code from https server

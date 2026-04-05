@@ -54,23 +54,3 @@ func TestGenerateSelfSigned_SaneCertificate(t *testing.T) {
 	// - !leaf.NotAfter.After(leaf.NotBefore)
 
 }
-
-func containsString(haystack []string, needle string) bool {
-	// like finding a needle in a haystack
-	for _, s := range haystack {
-		if s == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func containsIP(haystack []net.IP, needle net.IP) bool {
-	// like finding a needle in a haystack, but nerdier
-	for _, ip := range haystack {
-		if ip.Equal(needle) {
-			return true
-		}
-	}
-	return false
-}

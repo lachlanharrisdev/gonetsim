@@ -41,7 +41,11 @@ func TestDNSServer_SinkholeResponses(t *testing.T) {
 		errCh <- s.server.ActivateAndServe()
 	}()
 	defer func() {
-		_ = s.Shutdown(nil)
+		err = s.Shutdown(nil)
+		if err != nil {
+			// failed to shutdown server with error
+			t.Fatalf("Shutdown: %v", err)
+		}
 		select {
 		case <-errCh:
 		case <-time.After(500 * time.Millisecond):
