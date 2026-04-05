@@ -1,0 +1,56 @@
+package tlsutil
+
+import (
+	"crypto/x509"
+	"net"
+	"testing"
+	"time"
+)
+
+// / <summary>
+// / basic test for SSL/TLS cert gen. generates a cert & performs basic checks
+// / </summary>
+func TestGenerateSelfSigned_SaneCertificate(t *testing.T) {
+	cert, err := GenerateSelfSigned(SelfSignedOptions{
+		DNSNames: []string{"localhost", "example.test"},
+		IPs:      []net.IP{net.ParseIP("127.0.0.1")},
+		ValidFor: 2 * time.Hour,
+	})
+	if err != nil {
+		// failed with error
+		t.Fatalf("GenerateSelfSigned: %v", err)
+	}
+	if len(cert.Certificate) == 0 {
+		// failed to generate certificate
+		t.Fatalf("expected at least one certificate")
+	}
+	if cert.PrivateKey == nil {
+		// failed to generate private key
+		t.Fatalf("expected PrivateKey to be set")
+	}
+
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		// failed to parse generated certificate with error
+		t.Fatalf("ParseCertificate: %v", err)
+	}
+
+	if time.Until(leaf.NotAfter) <= 0 {
+		// failed to generate a certificate that is currently valid
+		t.Fatalf("expected certificate to be currently valid")
+	}
+
+	if leaf.KeyUsage&(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment) == 0 {
+		// failed to generate a certificate with appropriate key usage for TLS server
+		t.Fatalf("expected KeyUsage to include digital signature and/or key encipherment, got %v", leaf.KeyUsage)
+	}
+	if len(leaf.ExtKeyUsage) == 0 || leaf.ExtKeyUsage[0] != x509.ExtKeyUsageServerAuth {
+		// failed to generate a certificate with appropriate extended key usage for TLS server
+		t.Fatalf("expected ExtKeyUsage to include server auth, got %v", leaf.ExtKeyUsage)
+	}
+
+	// excluded potential checks:
+	// - leaf.Subject.CommonName != "gonetsim"
+	// - !leaf.NotAfter.After(leaf.NotBefore)
+
+}
