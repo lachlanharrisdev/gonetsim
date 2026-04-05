@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: GoNetSim
+type: software
+authors:
+  - given-names: Lachlan
+    family-names: Harris
+    email: contact@lachlanharris.dev
+    orcid: 'https://orcid.org/0009-0003-2835-1179'
+identifiers:
+  - type: url
+    value: >-
+      https://github.com/lachlanharrisdev/gonetsim/releases/tag/vX.X.X
+    description: >-
+      The URL of version vX.X.X of the software. Please
+      update this to the used release
+repository-code: 'https://github.com/lachlanharrisdev/gonetsim'
+license: Apache-2.0
