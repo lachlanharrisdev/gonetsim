@@ -1,13 +1,13 @@
-![GitHub Repo stars](https://img.shields.io/github/stars/lachlanharrisdev/gonetsim?style=social)
-![GitHub](https://img.shields.io/github/license/lachlanharrisdev/gonetsim)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lachlanharrisdev/gonetsim)
-![GitHub all releases](https://img.shields.io/github/downloads/lachlanharrisdev/gonetsim/total)
-![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)
-![GitHub Release Status](https://img.shields.io/github/v/release/lachlanharrisdev/gonetsim)
+[![GitHub Repo stars](https://img.shields.io/github/stars/lachlanharrisdev/gonetsim?style=social)](https://github.com/lachlanharrisdev/gonetsim/stargazers)
+[![GitHub](https://img.shields.io/github/license/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/?tab=MIT-1-ov-file)
+[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/)
+[![GitHub all releases](https://img.shields.io/github/downloads/lachlanharrisdev/gonetsim/total)](https://github.com/lachlanharrisdev/gonetsim/releases)
+[![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)](https://github.com/lachlanharrisdev/gonetsim/actions)
+[![GitHub Release Status](https://img.shields.io/github/v/release/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/releases/latest)
 
 # gonetsim
 
-A WIP "fork" of `inetsim` in Go, designed as a lightweight alternative with much stronger support for modern operating systems for beginners.
+A WIP successor of `inetsim` in Go, designed as a lightweight alternative with much stronger support for modern operating systems for beginners.
 
 <br/>
 
