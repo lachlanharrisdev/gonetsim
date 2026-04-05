@@ -62,11 +62,11 @@ gonetsim --config /path/to/gonetsim.toml
 
 ## Contributing
 
-Praetor follows most standard conventions for contributing, and accepts any contributions from documentation improvements, bug triage / fixes, small features or any updates for [issues in the backlog](https://github.com/lachlanharrisdev/gonetsim/issues?q=is%3Aissue). For more information on contributing please see [CONTRIBUTING.md](https://github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md).
+GoNetSim follows most standard conventions for contributing, and accepts any contributions from documentation improvements, bug triage / fixes, small features or any updates for [issues in the backlog](https://github.com/lachlanharrisdev/gonetsim/issues?q=is%3Aissue). For more information on contributing please see [CONTRIBUTING.md](https://github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md).
 
 ### Codespaces
 
-Praetor has full support for Github Codespaces. These are recommended for small changes or devices with no access to a development environment. You can use the buttons below to open the repository in a web-based editor and get started.
+GoNetSim has full support for Github Codespaces. These are recommended for small changes or devices with no access to a development environment. You can use the buttons below to open the repository in a web-based editor and get started.
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/lachlanharrisdev/gonetsim?quickstart=1)
 
