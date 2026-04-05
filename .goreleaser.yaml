@@ -52,15 +52,6 @@ sboms:
   - cmd: syft
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-
-
-
-changelog:
     use: github
     abbrev: 7
     groups:
