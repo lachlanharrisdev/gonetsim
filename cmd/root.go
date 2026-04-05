@@ -21,9 +21,10 @@ import (
 var rootConfigPath string
 
 var rootCmd = &cobra.Command{
-	Use: "gonetsim",
-	Short: "Network service simulator (dns + http + https)",
-	Args:  cobra.NoArgs,
+	Use:          "gonetsim",
+	Short:        "Network service simulator (dns + http + https)",
+	Args:         cobra.NoArgs,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgRes, err := appconfig.LoadOrCreate(rootConfigPath)
 		if err != nil {
