@@ -6,6 +6,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
+project_name: GoNetSim
 version: 2
 
 before:
@@ -43,9 +44,81 @@ archives:
       - goos: windows
         formats: zip
 
+checksum:
+  name_template: "checksums.txt"
+
+sboms:
+  - cmd: syft
+
 changelog:
   sort: asc
   filters:
     exclude:
       - "^docs:"
       - "^test:"
+
+
+
+changelog:
+    use: github
+    abbrev: 7
+    groups:
+        - title: "Features"
+          regexp: '^feat(\(.+\))?:'
+          order: 0
+        - title: "Bug Fixes"
+          regexp: '^fix(\(.+\))?:'
+          order: 1
+        - title: "Uncategorized"
+          order: 999
+    filters:
+        exclude:
+            - '^docs(\(.+\))?:'
+            - '^test(\(.+\))?:'
+            - '^refactor(\(.+\))?:'
+            - '^chore(\(.+\))?:'
+            - '^refc(\(.+\))?:'
+
+release:
+    github:
+        owner: lachlanharrisdev
+        name: gonetsim
+    draft: false
+    replace_existing_draft: false
+    use_existing_draft: false
+    replace_existing_artifacts: false
+
+    name_template: "{{ .Tag }}"
+    header: |
+        # GoNetSim {{ .Version }}
+
+        **Release Date:** {{ .Date }}
+        **Latest Included Commit:** {{ .ShortCommit }}
+        **Prerelease:** {{ .Prerelease }}
+        **Download URL:** {{ .ReleaseURL }}
+
+        ---
+    footer: |
+        ---
+
+        ## Installation
+
+        Download the binary for your platform from the assets below, extract, optionally verify the checksum, and place the binary in your `$PATH`.
+
+        **Linux (x86_64/amd64)**
+        ```bash
+        # extract the binary
+        tar xzf gonetsim_Linux_x86_64.tar.gz
+
+        # optional
+        sha256sum -c checksums.txt
+
+        # move to $PATH
+        sudo mv gonetsim /usr/local/bin/
+        ```
+
+        ### Resources
+
+        - [Documentation](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/wiki)
+        - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)
+        - [Discussions](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/discussions)

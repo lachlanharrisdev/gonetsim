@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
+
 
 jobs:
   release:
@@ -27,6 +30,8 @@ jobs:
       shell: bash
       if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
       run: go mod download
+    - name: Download Syft
+      uses: anchore/sbom-action/download-syft@v0
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v7
       with:
@@ -34,3 +39,7 @@ jobs:
         args: release --clean
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # After GoReleaser runs, attest all the files in ./dist/checksums.txt:
+    - uses: actions/attest@v4
+      with:
+        subject-checksums: ./dist/checksums.txt
