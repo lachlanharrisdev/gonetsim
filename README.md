@@ -3,7 +3,7 @@
   <h1 align="center">GoNetSim</h1>
 
   <p align="center" width="100">
-    Go Network Simulator. A spiritual, unofficial successor to the <a href="https://www.inetsim.org/"><code>inetsim</code> project</a>, providing a suite of tools & services for simulating common internet services in a controlled environment.
+    Go Network Simulator. A spiritual, unofficial successor to the <a href="https://www.inetsim.org/"><code>inetsim</code> project</a>, providing a suite of tools for simulating common internet services in a controlled environment.
     <br />
   </p>
   <div align="center" width="50">
@@ -23,10 +23,10 @@
 
 ## Quick start
 
-`gontesim serve` will run all services
+`gonetsim` runs the main services (DNS + HTTP + HTTPS).
 
 ```bash
-gonetsim serve
+gonetsim
 ```
 
 Alternatively, you can specify a single service to run
@@ -37,37 +37,24 @@ gonetsim http
 gonetsim https
 ```
 
-Or choose individual services to disable
-
-```bash
-gonetsim serve --https=false
-```
-
 <br/>
 
 ## Configuration
 
-Configuration files are a WIP. For now, there are plenty of flags that can be specified when running commands. To see the full list, please run `gonetsim help <command>`. Here is the list of flags for the `gonetsim serve` command
+GoNetSim uses a TOML configuration file for most configuration, rather than forcing the memorisation of many flags.
 
-```go
-Usage:
-  gonetsim serve [flags]
+On first run, if no config file is found, GoNetSim generates a default commented config file in `$XDG_CONFIG_HOME/gonetsim/config.toml` and uses it.
 
-Flags:
-      --dns                   enable DNS (default true)
-      --dns-ipv4 string       DNS sinkhole IPv4 (default "127.0.0.1")
-      --dns-ipv6 string       DNS sinkhole IPv6 (empty disables) (default "::1")
-      --dns-listen string     DNS listen address (default ":5353")
-      --dns-network string    DNS network: udp or tcp (default "udp")
-  -h, --help                  help for serve
-      --http                  enable HTTP (default true)
-      --http-listen string    HTTP listen address (default ":8080")
-      --http-status int       HTTP status code (default 200)
-      --https                 enable HTTPS (default true)
-      --https-cert string     HTTPS TLS cert PEM path (optional)
-      --https-key string      HTTPS TLS key PEM path (optional)
-      --https-listen string   HTTPS listen address (default ":8443")
-      --https-status int      HTTPS status code (default 200)
+Default search locations:
+
+- `/etc/gonetsim/gonetsim.toml`
+- `$XDG_CONFIG_HOME/gonetsim/config.toml` (usually `~/.config/gonetsim/config.toml`)
+- `./gonetsim.toml`
+
+To use a specific config file:
+
+```bash
+gonetsim --config /path/to/gonetsim.toml
 ```
 
 <br/>
