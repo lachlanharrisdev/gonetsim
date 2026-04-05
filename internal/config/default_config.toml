@@ -1,0 +1,41 @@
+# `gonetsim` configuration file
+#
+# This file is generated automatically the first time you run `gonetsim` if no
+# configuration file is found
+#
+# You can place it in one of the following locations, in order of precedence:
+#   - /etc/gonetsim/gonetsim.toml
+#   - $XDG_CONFIG_HOME/gonetsim/config.toml (usually ~/.config/gonetsim/config.toml)
+#   - ./gonetsim.toml
+# Or specify an explicit path with:
+#   gonetsim --config /path/to/gonetsim.toml
+
+[general]
+# How long to wait for servers to shut down after receiving SIGINT/SIGTERM.
+shutdown_timeout = "2s"
+
+[dns]
+enabled = true
+listen = ":5353"
+network = "udp"
+# Sinkhole IP for A responses.
+ipv4 = "127.0.0.1"
+# Optional sinkhole IP for AAAA responses. Set empty string to disable.
+ipv6 = "::1"
+
+[http]
+enabled = true
+listen = ":8080"
+# Status code to return for all requests. 0 means default (200).
+status = 200
+
+[https]
+enabled = true
+listen = ":8443"
+# Status code to return for all requests. 0 means default (200).
+status = 200
+
+# Optional TLS cert/key paths (PEM). If both are empty, gonetsim generates an
+# ephemeral self-signed certificate at startup.
+cert = ""
+key = ""
