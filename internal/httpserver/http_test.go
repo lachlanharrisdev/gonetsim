@@ -51,20 +51,15 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		// failed to get expected status code
 		t.Fatalf("expected status %d, got %d", http.StatusCreated, resp.StatusCode)
 	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		// failed to get expected content type
+		t.Fatalf("expected Content-Type text/html, got %q", ct)
+	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 
-	// checks for response body content based on default fake handler
-	if !strings.Contains(string(body), "gonetsim\n") {
-		// failed to get expected response body content
-		t.Fatalf("expected response body to contain gonetsim, got %q", string(body))
-	}
-	if !strings.Contains(string(body), "method=GET\n") {
-		// "
-		t.Fatalf("expected response body to contain method=GET, got %q", string(body))
-	}
-	if !strings.Contains(string(body), "path=/hello\n") {
-		// "
-		t.Fatalf("expected response body to contain path=/hello, got %q", string(body))
+	if !strings.Contains(string(body), "GoNetSim HTTP Server") {
+		// failed to get expected body content
+		t.Fatalf("expected response body to contain HTML page content, got %q", string(body))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -133,10 +128,12 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		// failed to get expected status code from https server
 		t.Fatalf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
 	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("expected Content-Type text/html, got %q", ct)
+	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	if !strings.Contains(string(body), "path=/secure\n") {
-		// failed to get expected response body content from https server
-		t.Fatalf("expected response body to contain path=/secure, got %q", string(body))
+	if !strings.Contains(string(body), "fake mode") {
+		t.Fatalf("expected response body to contain fake mode content, got %q", string(body))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

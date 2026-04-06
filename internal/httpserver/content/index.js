@@ -1,0 +1,18 @@
+// GoNetSim HTTP server
+//
+// If you're seeing this file, the GoNetSim HTTP Server is running successfully in fake mode
+//
+// Links
+// - Repository: https://github.com/lachlanharris/gonetsim
+// - HTTP reference: https://gonetsim.lachlanharris.dev/reference/http
+// - HTTPS reference: https://gonetsim.lachlanharris.dev/reference/https
+//
+// Copyright (c) 2026 Lachlan Harris. All Rights Reserved.
+
+function Hello(name) {
+  const message = "Hello, " + name + "!";
+  console.log(message);
+  return message;
+}
+
+Hello("malware");

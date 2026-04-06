@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+ <root>
+     <title>GoNetSim</title>
+     <description>If you're seeing this file, the GoNetSim HTTP Server is running successfully in fake mode</description>
+     <links>
+         <id>1</id>
+         <name>Repository</name>
+         <link>https://github.com/lachlanharrisdev/gonetsim</link>
+     </links>
+     <links>
+         <id>2</id>
+         <name>HTTP Reference</name>
+         <link>https://gonetsim.lachlanharris.dev/reference/http</link>
+     </links>
+     <links>
+         <id>3</id>
+         <name>HTTPS Reference</name>
+         <link>https://gonetsim.lachlanharris.dev/reference/https</link>
+     </links>
+     <license>Apache-2.0</license>
+     <copyright>Copyright (c) 2026 Lachlan Harris. All Rights Reserved.</copyright>
+ </root>
