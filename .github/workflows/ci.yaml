@@ -98,6 +98,7 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/gonetsim:main
+            ghcr.io/${{ github.repository_owner }}/gonetsim:latest
             ghcr.io/${{ github.repository_owner }}/gonetsim:sha-${{ github.sha }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
