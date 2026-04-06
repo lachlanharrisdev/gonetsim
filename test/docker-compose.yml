@@ -1,0 +1,20 @@
+services:
+    gonetsim:
+        image: ghcr.io/lachlanharrisdev/gonetsim:latest
+
+        # publish the default (non-privileged) ports
+        # to publish standard ports on the host instead, swap to:
+        #  - "53:5353/udp"
+        #  - "53:5353/tcp"
+        #  - "80:8080"
+        #  - "443:8443"
+        ports:
+        - "5353:5353/udp"
+        - "5353:5353/tcp"
+        - "8080:8080"
+        - "8443:8443"
+
+        # by default the image includes a config at /etc/gonetsim/gonetsim.toml.
+        # to use a custom config, mount a read-only file over it:
+        # volumes:
+        #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro

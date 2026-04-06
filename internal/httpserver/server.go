@@ -18,7 +18,7 @@ func New(conf Config, handler http.Handler) (*Server, error) {
 		return nil, err
 	}
 	if handler == nil {
-		handler = Handler{StatusCode: conf.StatusCode}
+		handler = FakeHandler{StatusCode: conf.StatusCode}
 	}
 
 	s := &http.Server{

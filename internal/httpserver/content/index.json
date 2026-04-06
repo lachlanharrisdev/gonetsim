@@ -1,0 +1,23 @@
+{
+  "title": "GoNetSim",
+  "description": "If you're seeing this file, the GoNetSim HTTP Server is running successfully in fake mode",
+  "links": [
+    {
+      "id": 1,
+      "name": "Repository",
+      "link": "https://github.com/lachlanharrisdev/gonetsim"
+    },
+    {
+      "id": 2,
+      "name": "HTTP Reference",
+      "link": "https://gonetsim.lachlanharris.dev/reference/http"
+    },
+    {
+      "id": 3,
+      "name": "HTTPS Reference",
+      "link": "https://gonetsim.lachlanharris.dev/reference/https"
+    }
+  ],
+  "license": "Apache-2.0",
+  "copyright": "Copyright (c) 2026 Lachlan Harris. All Rights Reserved."
+}
