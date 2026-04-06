@@ -23,7 +23,7 @@ builds:
     goos:
       - linux
       - windows
-      - darwin
+#      - darwin
     ldflags:
       - -s -w
       - -X github.com/lachlanharrisdev/gonetsim/cmd.Version={{.Version}}
@@ -47,9 +47,6 @@ archives:
 
 checksum:
   name_template: "checksums.txt"
-
-sboms:
-  - cmd: syft
 
 changelog:
     use: github
@@ -86,7 +83,6 @@ release:
 
         **Release Date:** {{ .Date }}
         **Latest Included Commit:** {{ .ShortCommit }}
-        **Prerelease:** {{ .Prerelease }}
         **Download URL:** {{ .ReleaseURL }}
 
         ---
@@ -95,22 +91,10 @@ release:
 
         ## Installation
 
-        Download the binary for your platform from the assets below, extract, optionally verify the checksum, and place the binary in your `$PATH`.
-
-        **Linux (x86_64/amd64)**
-        ```bash
-        # extract the binary
-        tar xzf gonetsim_Linux_x86_64.tar.gz
-
-        # optional
-        sha256sum -c checksums.txt
-
-        # move to $PATH
-        sudo mv gonetsim /usr/local/bin/
-        ```
+        Please refer to the [Installation Guide](https://gonetsim.lachlanharris.dev/guides/installation)
 
         ### Resources
 
-        - [Documentation](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/wiki)
+        - [Documentation](https://gonetsim.lachlanharris.dev/)
         - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)
         - [Discussions](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/discussions)

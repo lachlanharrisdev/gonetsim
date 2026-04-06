@@ -81,7 +81,7 @@ For more information on configuration, please see the [configuration reference](
 A lightweight distroless container setup lives in `docker/`. This is the recommended installation method if you require long periods of uptime, or if your system is incompatible
 with the provided binaries
 
-For a full reference guide please see the [Docker guide](https://gonetsim.lachlanharris.dev/guide/docker)
+For a full reference guide please see the [Docker guide](https://gonetsim.lachlanharris.dev/guides/docker)
 
 <br/>
 
