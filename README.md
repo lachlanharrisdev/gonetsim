@@ -6,6 +6,7 @@
 
   <p align="center" width="100">
     Go Network Simulator. A spiritual, unofficial successor to the <a href="https://www.inetsim.org/"><code>inetsim</code> project</a>, providing a suite of tools for simulating common internet services in a controlled environment.
+    <a href="https://gonetsim.lachlanharris.dev"><strong>Explore the docs »</strong></a>
     <br />
   </p>
   <p align="center" width="50">
@@ -16,21 +17,34 @@
   [![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)](https://github.com/lachlanharrisdev/gonetsim/actions)<br/>
   [![GitHub Release Status](https://img.shields.io/github/v/release/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/releases/latest)
   [![Go Report Card](https://goreportcard.com/badge/github.com/lachlanharrisdev/gonetsim)](https://goreportcard.com/report/github.com/lachlanharrisdev/gonetsim)
-    
+
   </p>
+  <div align="center">
+    <a href="https://github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md">Contribute</a>
+    &middot;
+    <a href="https://github.com/lachlanharrisdev/gonetsim/issues/new?template=bug_report.md">Report a Bug</a>
+    &middot;
+    <a href="https://github.com/lachlanharrisdev/gonetsim/issues/new?template=feature_request.md">Request a Feature</a>
+  </div>
 </div>
 
 <br/>
 
-## Quick start
+## Usage
 
-`gonetsim` runs the main services (DNS + HTTP + HTTPS).
+### Installation
+
+Installation instructions can be found [here](https://gonetsim.lachlanharris.dev/guides/installation).
+
+### Quick Start
+
+Running `gonetsim` starts all services based on the default configuration file
 
 ```yaml
 gonetsim
 ```
 
-Alternatively, you can specify a single service to run
+Alternatively, you can specify an individual service to run
 
 ```yaml
 gonetsim dns
@@ -57,6 +71,17 @@ To use a specific config file:
 ```yaml
 gonetsim --config /path/to/gonetsim.toml
 ```
+
+For more information on configuration, please see the [configuration reference](https://gonetsim.lachlanharris.dev/references/configuration)
+
+<br/>
+
+## Docker
+
+A lightweight distroless container setup lives in `docker/`. This is the recommended installation method if you require long periods of uptime, or if your system is incompatible
+with the provided binaries
+
+For a full reference guide please see the [Docker guide](https://gonetsim.lachlanharris.dev/guide/docker)
 
 <br/>
 
