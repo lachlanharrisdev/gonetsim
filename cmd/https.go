@@ -30,13 +30,12 @@ var httpsCmd = &cobra.Command{
 		defer stop()
 
 		manager := service.NewManager(5 * time.Second)
-		manager.RunSingleService(ctx,
+		return manager.RunSingleService(ctx,
 			httpserver.NewHTTPSService(
 				httpserver.Config{Addr: listen, StatusCode: httpsStatus},
 				httpserver.TLSOptions{CertFile: httpsCert, KeyFile: httpsKey},
 			),
 		)
-		return nil
 	},
 }
 

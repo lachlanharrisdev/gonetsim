@@ -21,7 +21,7 @@ func (m *Manager) Add(s Service) {
 	m.services = append(m.services, s)
 }
 
-func (m *Manager) RunAll(ctx context.Context) {
+func (m *Manager) RunAll(ctx context.Context) (err error) {
 	for _, s := range m.services {
 		service := s
 		InstantiateService(m, ctx, service)
@@ -34,18 +34,22 @@ func (m *Manager) RunAll(ctx context.Context) {
 
 	for _, s := range m.services {
 		service := s
-		go func() {
+		go func() (err error) {
 			if err := service.Stop(shutdownCtx); err != nil && err != context.Canceled {
 				log.Printf("[%s] stop error: %v", service.Name(), err)
+				return err
 			}
+			return nil
 		}()
 	}
 
 	// block until all services have exited
 	m.wg.Wait()
+
+	return err
 }
 
-func (m *Manager) RunSingleService(ctx context.Context, s Service) {
+func (m *Manager) RunSingleService(ctx context.Context, s Service) (err error) {
 	InstantiateService(m, ctx, s)
 
 	<-ctx.Done()
@@ -60,6 +64,7 @@ func (m *Manager) RunSingleService(ctx context.Context, s Service) {
 	}()
 
 	m.wg.Wait()
+	return err
 }
 
 func InstantiateService(m *Manager, ctx context.Context, service Service) {

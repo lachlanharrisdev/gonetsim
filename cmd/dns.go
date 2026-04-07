@@ -49,9 +49,7 @@ var dnsCmd = &cobra.Command{
 		defer stop()
 
 		manager := service.NewManager(5 * time.Second)
-		manager.Add(dnsserver.NewService(conf))
-		manager.RunAll(ctx)
-		return nil
+		return manager.RunSingleService(ctx, dnsserver.NewService(conf))
 	},
 }
 

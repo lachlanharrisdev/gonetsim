@@ -87,8 +87,7 @@ var rootCmd = &cobra.Command{
 
 		log.Printf("root: running (dns=%t http=%t https=%t)", cfg.DNS.Enabled, cfg.HTTP.Enabled, cfg.HTTPS.Enabled)
 
-		manager.RunAll(runCtx)
-		return nil
+		return manager.RunAll(runCtx)
 	},
 }
 
