@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -44,23 +45,17 @@ func (s *Server) Start(ctx context.Context) error {
 	s.srv = srv
 
 	log.Printf("dns: listening on %s (%s), sinkhole=%s", s.conf.Addr, s.conf.Net, sinkholeSummary(s.conf))
-	return srv.ListenAndServe()
+	if err := srv.ListenAndServe(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) Stop(ctx context.Context) error {
 	if s.srv == nil {
 		return nil
 	}
-
-	errCh := make(chan error, 1)
-	go func() { errCh <- s.srv.Shutdown() }()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return s.srv.ShutdownContext(ctx)
 }
 
 func sinkholeSummary(conf Config) string {
@@ -99,7 +94,7 @@ func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 		case dns.TypeMX:
 			appendRecord(m, q, h.ttl, "MX", "10 "+h.sinkholeDomain)
 		case dns.TypeTXT:
-			appendRecord(m, q, h.ttl, "TXT", `"`+h.sinkholeTXT+`"`)
+			appendRecord(m, q, h.ttl, "TXT", strconv.Quote(h.sinkholeTXT))
 		case dns.TypeNS:
 			appendRecord(m, q, h.ttl, "NS", h.sinkholeDomain)
 		case dns.TypeSRV:
