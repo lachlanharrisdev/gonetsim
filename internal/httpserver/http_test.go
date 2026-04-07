@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsutil"
+	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
 // / <summary>
@@ -23,7 +23,7 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	s, err := New(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil)
+	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil)
 	if err != nil {
 		// failed to create server with error
 		t.Fatalf("New: %v", err)
@@ -31,11 +31,11 @@ func TestHTTPServer_Smoke(t *testing.T) {
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
-		_ = s.Shutdown(ctx)
+		_ = srv.Shutdown(ctx)
 	}()
 
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.Serve(ln) }()
+	go func() { errCh <- srv.Serve(ln) }()
 
 	url := "http://" + ln.Addr().String() + "/hello"
 	resp := mustGet(t, http.DefaultClient, url)
@@ -64,7 +64,7 @@ func TestHTTPServer_Smoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	_ = s.Shutdown(ctx)
+	_ = srv.Shutdown(ctx)
 	select {
 	case <-errCh:
 	case <-time.After(1 * time.Second):
@@ -83,13 +83,13 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	cert, err := tlsutil.GenerateSelfSigned(tlsutil.SelfSignedOptions{DNSNames: []string{"localhost"}})
+	cert, err := tlsprovider.GenerateSelfSigned(tlsprovider.SelfSignedOptions{DNSNames: []string{"localhost"}})
 	if err != nil {
 		// failed to generate self-signed certificate with error
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
 
-	s, err := New(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil)
+	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil)
 	if err != nil {
 		// failed to create https server with error
 		t.Fatalf("New: %v", err)
@@ -97,15 +97,15 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
-		_ = s.Shutdown(ctx)
+		_ = srv.Shutdown(ctx)
 	}()
 
-	s.SetTLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}})
+	srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	errCh := make(chan error, 1)
 	go func() {
 		//  pass in-memory certs w/o temp files
-		errCh <- s.http.ServeTLS(ln, "", "")
+		errCh <- srv.ServeTLS(ln, "", "")
 	}()
 
 	client := &http.Client{
@@ -138,7 +138,7 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	_ = s.Shutdown(ctx)
+	_ = srv.Shutdown(ctx)
 	select {
 	case <-errCh:
 	case <-time.After(1 * time.Second):

@@ -1,4 +1,4 @@
-package tlsutil
+package tlsprovider
 
 import (
 	"crypto/x509"
