@@ -35,11 +35,15 @@ type GeneralConfig struct {
 }
 
 type DNSConfig struct {
-	Enabled bool   `koanf:"enabled"`
-	Listen  string `koanf:"listen"`
-	Network string `koanf:"network"`
-	IPv4    string `koanf:"ipv4"`
-	IPv6    string `koanf:"ipv6"`
+	Enabled  bool   `koanf:"enabled"`
+	Listen   string `koanf:"listen"`
+	Network  string `koanf:"network"`
+	IPv4     string `koanf:"ipv4"`
+	IPv6     string `koanf:"ipv6"`
+	Domain   string `koanf:"domain"`
+	TXT      string `koanf:"txt"`
+	TTL      uint32 `koanf:"ttl"`
+	Compress bool   `koanf:"compress"`
 }
 
 type HTTPConfig struct {
@@ -60,11 +64,15 @@ func Default() Config {
 	return Config{
 		General: GeneralConfig{ShutdownTimeout: 2 * time.Second},
 		DNS: DNSConfig{
-			Enabled: true,
-			Listen:  ":5353",
-			Network: "udp",
-			IPv4:    "127.0.0.1",
-			IPv6:    "::1",
+			Enabled:  true,
+			Listen:   ":5353",
+			Network:  "udp",
+			IPv4:     "127.0.0.1",
+			IPv6:     "::1",
+			Domain:   "localhost",
+			TXT:      "TXT record response from GoNetSim",
+			TTL:      60,
+			Compress: false,
 		},
 		HTTP: HTTPConfig{
 			Enabled: true,

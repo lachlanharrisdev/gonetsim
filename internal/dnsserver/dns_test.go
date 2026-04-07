@@ -10,22 +10,24 @@ import (
 	"github.com/miekg/dns"
 )
 
-// / <summary>
-// / for now, tests that A/AAAA queries return the correct sinkhole IP, and that other types return NOERROR
-// / </summary>
-func TestDNSServer_SinkholeResponses(t *testing.T) {
+// not a test in of itself; sets up config and server for all record-specific tests (e.g. A, AAAA, TXT) to use, to avoid duplication of setup code in each test
+func queryTestsHelper(t *testing.T) (client *dns.Client, addr string, config Config, teardown func()) {
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
 		// failed to listen on a local udp port with error
 		t.Fatalf("ListenPacket: %v", err)
 	}
-	addr := pc.LocalAddr().String()
+	addr = pc.LocalAddr().String()
 
 	conf := Config{
-		Addr:         addr,
-		Net:          "udp",
-		SinkholeIPv4: netip.MustParseAddr("203.0.113.10"),
-		SinkholeIPv6: netip.MustParseAddr("2001:db8::10"),
+		Addr:           addr,
+		Net:            "udp",
+		SinkholeIPv4:   netip.MustParseAddr("203.0.113.10"),
+		SinkholeIPv6:   netip.MustParseAddr("2001:db8::10"),
+		SinkholeDomain: "localhost",
+		SinkholeTXT:    "test",
+		TTL:            60,
+		Compress:       false,
 	}
 	srv, err := NewServer(conf)
 	if err != nil {
@@ -40,7 +42,7 @@ func TestDNSServer_SinkholeResponses(t *testing.T) {
 	go func() {
 		errCh <- srv.ActivateAndServe()
 	}()
-	defer func() {
+	teardown = func() {
 		err = srv.Shutdown()
 		if err != nil {
 			// failed to shutdown server with error
@@ -50,44 +52,149 @@ func TestDNSServer_SinkholeResponses(t *testing.T) {
 		case <-errCh:
 		case <-time.After(500 * time.Millisecond):
 		}
-	}()
-
-	client := &dns.Client{Net: "udp", Timeout: 1 * time.Second}
-
-	respA := exchange(t, client, addr, "example.com.", dns.TypeA)
-	if len(respA.Answer) != 1 {
-		// failed to get expected number of answers for A query
-		t.Fatalf("A: expected 1 answer, got %d", len(respA.Answer))
 	}
-	a, ok := respA.Answer[0].(*dns.A)
+
+	client = &dns.Client{Net: "udp", Timeout: 1 * time.Second}
+
+	return client, addr, conf, teardown
+}
+
+func TestAQuery(t *testing.T) {
+	client, addr, config, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeA)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	a, ok := response.Answer[0].(*dns.A)
 	if !ok {
-		// failed to get expected record type for A query
-		t.Fatalf("A: expected *dns.A, got %T", respA.Answer[0])
+		t.Fatalf("expected *dns.A, got %T", response.Answer[0])
 	}
-	if got := a.A.String(); got != conf.SinkholeIPv4.String() {
-		// failed to get expected sinkhole ip for A query
-		t.Fatalf("A: expected %s, got %s", conf.SinkholeIPv4.String(), got)
+	if got := a.A.String(); got != config.SinkholeIPv4.String() {
+		t.Fatalf("expected %s, got %s", config.SinkholeIPv4.String(), got)
 	}
+}
 
-	respAAAA := exchange(t, client, addr, "example.com.", dns.TypeAAAA)
-	if len(respAAAA.Answer) != 1 {
-		// failed to get expected number of answers for AAAA query
-		t.Fatalf("AAAA: expected 1 answer, got %d", len(respAAAA.Answer))
+func TestAAAAQuery(t *testing.T) {
+	client, addr, config, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeAAAA)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
 	}
-	aaaa, ok := respAAAA.Answer[0].(*dns.AAAA)
+	aaaa, ok := response.Answer[0].(*dns.AAAA)
 	if !ok {
-		// failed to get expected record type for AAAA query
-		t.Fatalf("AAAA: expected *dns.AAAA, got %T", respAAAA.Answer[0])
+		t.Fatalf("expected *dns.AAAA, got %T", response.Answer[0])
 	}
-	if got := aaaa.AAAA.String(); got != conf.SinkholeIPv6.String() {
-		// failed to get expected sinkhole ip for AAAA query
-		t.Fatalf("AAAA: expected %s, got %s", conf.SinkholeIPv6.String(), got)
+	if got := aaaa.AAAA.String(); got != config.SinkholeIPv6.String() {
+		t.Fatalf("expected %s, got %s", config.SinkholeIPv6.String(), got)
 	}
+}
 
-	respTXT := exchange(t, client, addr, "example.com.", dns.TypeTXT)
-	if len(respTXT.Answer) != 0 {
-		// failed to get expected number of answers for TXT query
-		t.Fatalf("TXT: expected 0 answers, got %d", len(respTXT.Answer))
+func TestTXTQuery(t *testing.T) {
+	client, addr, config, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeTXT)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	txt, ok := response.Answer[0].(*dns.TXT)
+	if !ok {
+		t.Fatalf("expected *dns.TXT, got %T", response.Answer[0])
+	}
+	if len(txt.Txt) != 1 {
+		t.Fatalf("expected 1 TXT record, got %d", len(txt.Txt))
+	}
+	if got := txt.Txt[0]; got != config.SinkholeTXT {
+		t.Fatalf("expected %s, got %s", config.SinkholeTXT, got)
+	}
+}
+
+func TestCNAMEQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeCNAME)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	cname, ok := response.Answer[0].(*dns.CNAME)
+	if !ok {
+		t.Fatalf("expected *dns.CNAME, got %T", response.Answer[0])
+	}
+	if got := cname.Target; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
+	}
+}
+
+func TestMXQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeMX)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	mx, ok := response.Answer[0].(*dns.MX)
+	if !ok {
+		t.Fatalf("expected *dns.MX, got %T", response.Answer[0])
+	}
+	if got := mx.Mx; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
+	}
+}
+
+func TestNSQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeNS)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	ns, ok := response.Answer[0].(*dns.NS)
+	if !ok {
+		t.Fatalf("expected *dns.NS, got %T", response.Answer[0])
+	}
+	if got := ns.Ns; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
+	}
+}
+
+func TestSRVQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "_sip._tcp.example.com.", dns.TypeSRV)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	srv, ok := response.Answer[0].(*dns.SRV)
+	if !ok {
+		t.Fatalf("expected *dns.SRV, got %T", response.Answer[0])
+	}
+	if got := srv.Target; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
+	}
+}
+
+func TestPTRQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypePTR)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	ptr, ok := response.Answer[0].(*dns.PTR)
+	if !ok {
+		t.Fatalf("expected *dns.PTR, got %T", response.Answer[0])
+	}
+	if got := ptr.Ptr; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
 	}
 }
 

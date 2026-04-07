@@ -54,7 +54,16 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("dns.ipv6: %w", err)
 			}
-			conf := dnsserver.Config{Addr: listen, Net: cfg.DNS.Network, SinkholeIPv4: ipv4, SinkholeIPv6: ipv6}
+			conf := dnsserver.Config{
+				Addr:            listen,
+				Net:             cfg.DNS.Network,
+				SinkholeIPv4:    ipv4,
+				SinkholeIPv6:    ipv6,
+				SinkholeDomain:  cfg.DNS.Domain,
+				SinkholeTXT:     cfg.DNS.TXT,
+				TTL:             cfg.DNS.TTL,
+				Compress:        cfg.DNS.Compress,
+			}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

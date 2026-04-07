@@ -34,10 +34,14 @@ var dnsCmd = &cobra.Command{
 		}
 
 		conf := dnsserver.Config{
-			Addr:         listen,
-			Net:          dnsNetwork,
-			SinkholeIPv4: ipv4,
-			SinkholeIPv6: ipv6,
+			Addr:            listen,
+			Net:             dnsNetwork,
+			SinkholeIPv4:    ipv4,
+			SinkholeIPv6:    ipv6,
+			SinkholeDomain:  "localhost",
+			SinkholeTXT:     "TXT record response from GoNetSim",
+			TTL:             60,
+			Compress:        false,
 		}
 
 		ctx, stop := utils.SignalContext(context.Background())
