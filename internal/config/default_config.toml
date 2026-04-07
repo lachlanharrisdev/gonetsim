@@ -26,6 +26,14 @@ network = "udp"
 ipv4 = "127.0.0.1"
 # Optional sinkhole IP for AAAA responses. Set empty string to disable.
 ipv6 = "::1"
+# Sinkhole domain for CNAME, MX & PTR responses
+domain = "localhost"
+# TXT record for TXT DNS responses
+txt = "TXT record response from GoNetSim"
+# TTL in seconds for DNS responses
+ttl = 60
+# Enable DNS message compression
+compress = false
 
 [http]
 enabled = true

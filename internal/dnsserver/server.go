@@ -21,8 +21,12 @@ func NewServer(conf Config) (*dns.Server, error) {
 	}
 
 	h := &handler{
-		sinkholeIPv4: conf.SinkholeIPv4,
-		sinkholeIPv6: conf.SinkholeIPv6,
+		sinkholeIPv4:   conf.SinkholeIPv4,
+		sinkholeIPv6:   conf.SinkholeIPv6,
+		sinkholeDomain: conf.SinkholeDomain,
+		sinkholeTXT:    conf.SinkholeTXT,
+		ttl:            conf.TTL,
+		compress:       conf.Compress,
 	}
 
 	// catch-all
@@ -82,32 +86,108 @@ func sinkholeSummary(conf Config) string {
 }
 
 type handler struct {
-	sinkholeIPv4 netip.Addr
-	sinkholeIPv6 netip.Addr
+	sinkholeIPv4   netip.Addr
+	sinkholeIPv6   netip.Addr
+	sinkholeDomain string
+	sinkholeTXT    string
+	ttl            uint32
+	compress       bool
 }
 
 func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
-	m.Compress = false
+	m.Compress = h.compress
 
 	for _, q := range r.Question {
 		log.Printf("dns: query name=%s type=%s from=%s", q.Name, dns.TypeToString[q.Qtype], w.RemoteAddr())
 		switch q.Qtype {
 		case dns.TypeA:
-			if rr, err := dns.NewRR(fmt.Sprintf("%s 60 IN A %s", q.Name, h.sinkholeIPv4.String())); err == nil {
-				m.Answer = append(m.Answer, rr)
-			}
+			aResponse(q, h.sinkholeIPv4, h.ttl, m)
 		case dns.TypeAAAA:
 			if h.sinkholeIPv6.IsValid() {
-				if rr, err := dns.NewRR(fmt.Sprintf("%s 60 IN AAAA %s", q.Name, h.sinkholeIPv6.String())); err == nil {
-					m.Answer = append(m.Answer, rr)
-				}
+				aaaaResponse(q, h.sinkholeIPv6, h.ttl, m)
 			}
+		case dns.TypeCNAME:
+			cnameResponse(q, h.sinkholeDomain, h.ttl, m)
+		case dns.TypeMX:
+			mxResponse(q, h.sinkholeDomain, h.ttl, m)
+		case dns.TypeTXT:
+			txtResponse(q, h.sinkholeTXT, h.ttl, m)
+		case dns.TypeNS:
+			nsResponse(q, h.sinkholeDomain, h.ttl, m)
+		case dns.TypeSRV:
+			srvResponse(q, h.sinkholeDomain, h.ttl, m)
+		case dns.TypePTR:
+			ptrResponse(q, h.sinkholeDomain, h.ttl, m)
 		default:
 			// ret NOERROR with empty Answer for other types
 		}
 	}
 
 	_ = w.WriteMsg(m)
+}
+
+func aResponse(q dns.Question, ip netip.Addr, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN A %s", q.Name, ttl, ip.String())); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create A record for %s: %v", q.Name, err)
+	}
+}
+
+func aaaaResponse(q dns.Question, ip netip.Addr, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN AAAA %s", q.Name, ttl, ip.String())); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create AAAA record for %s: %v", q.Name, err)
+	}
+}
+
+func cnameResponse(q dns.Question, target string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN CNAME %s", q.Name, ttl, target)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create CNAME record for %s: %v", q.Name, err)
+	}
+}
+
+func mxResponse(q dns.Question, target string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN MX 10 %s", q.Name, ttl, target)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create MX record for %s: %v", q.Name, err)
+	}
+}
+
+func txtResponse(q dns.Question, txt string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN TXT %q", q.Name, ttl, txt)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create TXT record for %s: %v", q.Name, err)
+	}
+}
+
+func nsResponse(q dns.Question, target string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN NS %s", q.Name, ttl, target)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create NS record for %s: %v", q.Name, err)
+	}
+}
+
+func srvResponse(q dns.Question, target string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN SRV 10 0 0 %s", q.Name, ttl, target)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create SRV record for %s: %v", q.Name, err)
+	}
+}
+
+func ptrResponse(q dns.Question, target string, ttl uint32, m *dns.Msg) {
+	if rr, err := dns.NewRR(fmt.Sprintf("%s %d IN PTR %s", q.Name, ttl, target)); err == nil {
+		m.Answer = append(m.Answer, rr)
+	} else {
+		log.Printf("dns: failed to create PTR record for %s: %v", q.Name, err)
+	}
 }
