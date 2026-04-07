@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -27,12 +28,15 @@ var httpsCmd = &cobra.Command{
 
 		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
-		return httpserver.RunHTTPS(
-			ctx,
-			httpserver.Config{Addr: listen, StatusCode: httpsStatus},
-			httpserver.TLSOptions{CertFile: httpsCert, KeyFile: httpsKey},
-			httpserver.RunOptions{ShutdownTimeout: 5 * time.Second},
+
+		manager := service.NewManager(5 * time.Second)
+		manager.RunSingleService(ctx,
+			httpserver.NewHTTPSService(
+				httpserver.Config{Addr: listen, StatusCode: httpsStatus},
+				httpserver.TLSOptions{CertFile: httpsCert, KeyFile: httpsKey},
+			),
 		)
+		return nil
 	},
 }
 

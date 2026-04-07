@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/dnsserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -34,19 +35,23 @@ var dnsCmd = &cobra.Command{
 		}
 
 		conf := dnsserver.Config{
-			Addr:            listen,
-			Net:             dnsNetwork,
-			SinkholeIPv4:    ipv4,
-			SinkholeIPv6:    ipv6,
-			SinkholeDomain:  "localhost",
-			SinkholeTXT:     "TXT record response from GoNetSim",
-			TTL:             60,
-			Compress:        false,
+			Addr:           listen,
+			Net:            dnsNetwork,
+			SinkholeIPv4:   ipv4,
+			SinkholeIPv6:   ipv6,
+			SinkholeDomain: "localhost",
+			SinkholeTXT:    "TXT record response from GoNetSim",
+			TTL:            60,
+			Compress:       false,
 		}
 
 		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
-		return dnsserver.Run(ctx, conf, dnsserver.RunOptions{ShutdownTimeout: 5 * time.Second})
+
+		manager := service.NewManager(5 * time.Second)
+		manager.Add(dnsserver.NewService(conf))
+		manager.RunAll(ctx)
+		return nil
 	},
 }
 
