@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -134,14 +135,16 @@ func (c Config) Validate() error {
 	}
 
 	// logging
-	switch c.Logging.LogFormat {
+	logFormat := strings.ToLower(strings.TrimSpace(c.Logging.LogFormat))
+	switch logFormat {
 	case "", "text", "json":
 		// ok
 	default:
 		return fmt.Errorf("logging.format must be one of: text, json")
 	}
 	// default is "info" (see Default()); allow empty for backwards compat
-	switch c.Logging.Level {
+	logLevel := strings.ToLower(strings.TrimSpace(c.Logging.Level))
+	switch logLevel {
 	case "", "debug", "info", "warn", "warning", "error":
 		// ok
 	default:

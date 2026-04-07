@@ -99,18 +99,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func exitError(err error) {
-	if slog.Default() != nil {
-		slog.Error("fatal error", "err", err)
-	} else {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-	}
-	os.Exit(1)
-}
-
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		exitError(err)
+		slog.Error("fatal error", "err", err)
+		os.Exit(1)
 	}
 }
 

@@ -1,14 +1,12 @@
 package main
 
 import (
-	"github.com/lachlanharrisdev/gonetsim/cmd"
-
-	"github.com/mattn/go-isatty"
-
 	"fmt"
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/lachlanharrisdev/gonetsim/cmd"
+	"github.com/mattn/go-isatty"
 )
 
 func main() {
