@@ -3,7 +3,24 @@ package dnsserver
 import (
 	"errors"
 	"net/netip"
+
+	"github.com/miekg/dns"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/service"
 )
+
+func (s *Server) Name() string {
+	return "DNS"
+}
+
+type Server struct {
+	conf Config
+	srv  *dns.Server
+}
+
+func NewService(conf Config) service.Service {
+	return &Server{conf: conf}
+}
 
 type Config struct {
 	Addr string

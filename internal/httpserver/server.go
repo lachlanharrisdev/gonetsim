@@ -12,26 +12,6 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
-type RunOptions struct {
-	ShutdownTimeout time.Duration
-}
-
-type TLSOptions struct {
-	CertFile string
-	KeyFile  string
-}
-
-func (o TLSOptions) isProvided() bool {
-	return o.CertFile != "" || o.KeyFile != ""
-}
-
-func (o TLSOptions) validate() error {
-	if (o.CertFile == "") != (o.KeyFile == "") {
-		return errors.New("cert and key must be set together")
-	}
-	return nil
-}
-
 func NewServer(conf Config, handler http.Handler) (*http.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
@@ -48,77 +28,46 @@ func NewServer(conf Config, handler http.Handler) (*http.Server, error) {
 	return srv, nil
 }
 
-func RunHTTP(ctx context.Context, conf Config, opts RunOptions) error {
-	srv, err := NewServer(conf, nil)
-	if err != nil {
-		return err
-	}
-
-	ln, err := net.Listen("tcp", conf.Addr)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("http: listening on %s", conf.Addr)
-	return serveUntilDone(ctx, srv, ln, opts)
-}
-
-func RunHTTPS(ctx context.Context, conf Config, tlsOpts TLSOptions, opts RunOptions) error {
-	if err := tlsOpts.validate(); err != nil {
-		return err
-	}
-
-	srv, err := NewServer(conf, nil)
-	if err != nil {
-		return err
-	}
-
-	ln, err := net.Listen("tcp", conf.Addr)
-	if err != nil {
-		return err
-	}
-
-	tlsConf, err := buildTLSConfig(tlsOpts)
-	if err != nil {
-		return err
-	}
-	srv.TLSConfig = tlsConf
-
-	log.Printf("https: listening on %s", conf.Addr)
-	return serveUntilDone(ctx, srv, tls.NewListener(ln, tlsConf), opts)
-}
-
-func serveUntilDone(ctx context.Context, srv *http.Server, ln net.Listener, opts RunOptions) error {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.Serve(ln)
-	}()
-
-	select {
-	case <-ctx.Done():
-		shutdownTimeout := opts.ShutdownTimeout
-		if shutdownTimeout <= 0 {
-			shutdownTimeout = 5 * time.Second
-		}
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-
-		select {
-		case err := <-errCh:
-			if errors.Is(err, http.ErrServerClosed) {
-				return nil
-			}
+func (s *Server) Start(ctx context.Context) error {
+	if s.tlsOpts != nil {
+		if err := s.tlsOpts.validate(); err != nil {
 			return err
-		case <-time.After(shutdownTimeout):
-			return nil
 		}
-	case err := <-errCh:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
+	}
+
+	srv, err := NewServer(s.conf, nil)
+	if err != nil {
 		return err
 	}
+	s.srv = srv
+
+	ln, err := net.Listen("tcp", s.conf.Addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = ln.Close() }()
+
+	if s.tlsOpts != nil {
+		tlsConf, err := buildTLSConfig(*s.tlsOpts)
+		if err != nil {
+			return err
+		}
+		srv.TLSConfig = tlsConf
+		ln = tls.NewListener(ln, tlsConf)
+	}
+
+	log.Printf("%s: listening on %s", s.name, s.conf.Addr)
+	if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) Stop(ctx context.Context) error {
+	if s.srv != nil {
+		return s.srv.Shutdown(ctx)
+	}
+	return nil
 }
 
 func buildTLSConfig(tlsOpts TLSOptions) (*tls.Config, error) {
