@@ -2,6 +2,7 @@ package dnsserver
 
 import (
 	"errors"
+	"log/slog"
 	"net/netip"
 
 	"github.com/miekg/dns"
@@ -16,10 +17,15 @@ func (s *Server) Name() string {
 type Server struct {
 	conf Config
 	srv  *dns.Server
+	log  *slog.Logger
 }
 
 func NewService(conf Config) service.Service {
 	return &Server{conf: conf}
+}
+
+func (s *Server) SetLogger(logger *slog.Logger) {
+	s.log = logger
 }
 
 type Config struct {

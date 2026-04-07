@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -28,6 +29,7 @@ type Config struct {
 	DNS     DNSConfig     `koanf:"dns"`
 	HTTP    HTTPConfig    `koanf:"http"`
 	HTTPS   HTTPSConfig   `koanf:"https"`
+	Logging LoggingConfig `koanf:"logging"`
 }
 
 type GeneralConfig struct {
@@ -60,6 +62,11 @@ type HTTPSConfig struct {
 	Key     string `koanf:"key"`
 }
 
+type LoggingConfig struct {
+	LogFormat string `koanf:"format"`
+	Level     string `koanf:"level"`
+}
+
 func Default() Config {
 	return Config{
 		General: GeneralConfig{ShutdownTimeout: 2 * time.Second},
@@ -83,6 +90,10 @@ func Default() Config {
 			Enabled: true,
 			Listen:  ":8443",
 			Status:  200,
+		},
+		Logging: LoggingConfig{
+			LogFormat: "text",
+			Level:     "info",
 		},
 	}
 }
@@ -122,6 +133,24 @@ func (c Config) Validate() error {
 	if !c.DNS.Enabled && !c.HTTP.Enabled && !c.HTTPS.Enabled {
 		return errors.New("at least one service must be enabled")
 	}
+
+	// logging
+	logFormat := strings.ToLower(strings.TrimSpace(c.Logging.LogFormat))
+	switch logFormat {
+	case "", "text", "json":
+		// ok
+	default:
+		return fmt.Errorf("logging.format must be one of: text, json")
+	}
+	// default is "info" (see Default()); allow empty for backwards compat
+	logLevel := strings.ToLower(strings.TrimSpace(c.Logging.Level))
+	switch logLevel {
+	case "", "debug", "info", "warn", "warning", "error":
+		// ok
+	default:
+		return fmt.Errorf("logging.level must be one of: debug, info, warn, error")
+	}
+
 	return nil
 }
 

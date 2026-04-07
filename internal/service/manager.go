@@ -4,18 +4,50 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
 
+// prefix handling system, so prefix for services is display whilst still being able to use lmittman/tint
+type prefixHandler struct {
+	prefix string
+	next   slog.Handler
+}
+
+func (h *prefixHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.next.Enabled(ctx, level)
+}
+
+func (h *prefixHandler) Handle(ctx context.Context, r slog.Record) error {
+	r2 := slog.NewRecord(r.Time, r.Level, h.prefix+r.Message, r.PC)
+	r.Attrs(func(a slog.Attr) bool {
+		r2.AddAttrs(a)
+		return true
+	})
+	return h.next.Handle(ctx, r2)
+}
+
+func (h *prefixHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &prefixHandler{prefix: h.prefix, next: h.next.WithAttrs(attrs)}
+}
+
+func (h *prefixHandler) WithGroup(name string) slog.Handler {
+	return &prefixHandler{prefix: h.prefix, next: h.next.WithGroup(name)}
+}
+
 type Manager struct {
 	services        []Service
 	shutdownTimeout time.Duration
+	logger          *slog.Logger
 }
 
-func NewManager(shutdownTimeout time.Duration) *Manager {
-	return &Manager{shutdownTimeout: shutdownTimeout}
+func NewManager(shutdownTimeout time.Duration, logger *slog.Logger) *Manager {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Manager{shutdownTimeout: shutdownTimeout, logger: logger}
 }
 
 func (m *Manager) Add(s Service) {
@@ -28,19 +60,22 @@ type serviceExit struct {
 }
 
 func (m *Manager) RunAll(ctx context.Context) error {
-	return runServices(ctx, m.shutdownTimeout, m.services)
+	return runServices(ctx, m.logger, m.shutdownTimeout, m.services)
 }
 
 func (m *Manager) RunSingleService(ctx context.Context, s Service) error {
-	return runServices(ctx, m.shutdownTimeout, []Service{s})
+	return runServices(ctx, m.logger, m.shutdownTimeout, []Service{s})
 }
 
-func runServices(ctx context.Context, shutdownTimeout time.Duration, services []Service) error {
+func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.Duration, services []Service) error {
 	if len(services) == 0 {
 		return nil
 	}
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = 5 * time.Second
+	}
+	if logger == nil {
+		logger = slog.Default()
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
@@ -52,73 +87,79 @@ func runServices(ctx context.Context, shutdownTimeout time.Duration, services []
 	wg.Add(len(services))
 	for _, svc := range services {
 		service := svc
-		go runService(&wg, runCtx, service, exitCh)
+		go runService(&wg, runCtx, logger, service, exitCh)
 	}
 
-	runErr := waitForStopOrExit(ctx, exitCh, cancel)
-	stopAll(shutdownTimeout, services)
+	logger.Info("starting services", "count", len(services))
+
+	running := len(services)
+	exited := make(map[Service]bool)
+
+	for running > 0 {
+		select {
+		case <-ctx.Done():
+			cancel()
+			stopRemaining(logger, shutdownTimeout, services, exited)
+			wg.Wait()
+			return nil
+		case ex := <-exitCh:
+			running--
+			exited[ex.svc] = true
+		}
+	}
+
 	wg.Wait()
-
-	if runErr != nil {
-		return runErr
-	}
-	if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-	return nil
+	return errors.New("all services stopped")
 }
 
-func waitForStopOrExit(ctx context.Context, exitCh <-chan serviceExit, cancel context.CancelFunc) error {
-	select {
-	case <-ctx.Done():
-		return nil
-	case ex := <-exitCh:
-		cancel()
-		return exitAsError(ex)
-	}
-}
-
-func exitAsError(ex serviceExit) error {
-	if ex.err == nil || errors.Is(ex.err, context.Canceled) {
-		return fmt.Errorf("[%s] exited unexpectedly", ex.svc.Name())
-	}
-	return fmt.Errorf("[%s] %w", ex.svc.Name(), ex.err)
-}
-
-func stopAll(shutdownTimeout time.Duration, services []Service) {
+func stopRemaining(logger *slog.Logger, shutdownTimeout time.Duration, services []Service, exited map[Service]bool) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	var stopWG sync.WaitGroup
-	stopWG.Add(len(services))
 	for _, svc := range services {
+		if exited[svc] {
+			continue
+		}
 		service := svc
+		stopWG.Add(1)
 		go func() {
 			defer stopWG.Done()
 			if err := service.Stop(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) {
-				log.Printf("[%s] stop error: %v", service.Name(), err)
+				logger.Error("service stop error", "service", service.Name(), "err", err)
 			}
 		}()
 	}
 	stopWG.Wait()
 }
 
-func runService(wg *sync.WaitGroup, ctx context.Context, service Service, exitCh chan<- serviceExit) {
+func runService(wg *sync.WaitGroup, ctx context.Context, rootLogger *slog.Logger, service Service, exitCh chan<- serviceExit) {
 	defer wg.Done()
+	if rootLogger == nil {
+		rootLogger = slog.Default()
+	}
+	prefix := fmt.Sprintf("%-5s ", strings.ToUpper(service.Name()))
+	logger := slog.New(&prefixHandler{prefix: prefix, next: rootLogger.Handler()})
+	if la, ok := service.(LoggerAware); ok {
+		la.SetLogger(logger)
+	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[%s] recovered from panic: %v", service.Name(), r)
+			logger.Error("recovered from panic", "panic", r)
 			exitCh <- serviceExit{svc: service, err: fmt.Errorf("panic: %v", r)}
 		}
 	}()
 
-	log.Printf("[%s] starting...", service.Name())
+	logger.Info("starting")
 	err := service.Start(ctx)
 	if err != nil && !errors.Is(err, context.Canceled) {
-		log.Printf("[%s] stopped with error: %v", service.Name(), err)
+		logger.Error("stopped with error", "err", err)
 	} else {
-		log.Printf("[%s] stopped", service.Name())
+		logger.Info("stopped")
 	}
 	exitCh <- serviceExit{svc: service, err: err}
 }

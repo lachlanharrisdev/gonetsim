@@ -51,3 +51,9 @@ status = 200
 # ephemeral self-signed certificate at startup.
 cert = ""
 key = ""
+
+[logging]
+# Log output format: "text" (fixed-width columns) or "json".
+format = "text"
+# Minimum log level: "debug", "info", "warn", "error".
+level = "info"
