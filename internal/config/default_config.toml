@@ -4,9 +4,13 @@
 # configuration file is found
 #
 # You can place it in one of the following locations, in order of precedence:
-#   - /etc/gonetsim/gonetsim.toml
-#   - $XDG_CONFIG_HOME/gonetsim/config.toml (usually ~/.config/gonetsim/config.toml)
-#   - ./gonetsim.toml
+#   Linux:
+#     - /etc/gonetsim/gonetsim.toml
+#     - $XDG_CONFIG_HOME/gonetsim/config.toml (usually ~/.config/gonetsim/config.toml)
+#     - ./gonetsim.toml
+#   Windows:
+#     - %APPDATA%\gonetsim\config.toml
+#     - ./gonetsim.toml
 # Or specify an explicit path with:
 #   gonetsim --config /path/to/gonetsim.toml
 

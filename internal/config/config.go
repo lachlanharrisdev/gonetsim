@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -167,10 +168,13 @@ func defaultSearchPaths() []string {
 
 	// in order of precedence from lowest-highest
 
-	// system config `/etc/gonetsim/gonetsim.toml`
-	paths = append(paths, systemConfigPath)
+	// system config `/etc/gonetsim/gonetsim.toml` (unix only)
+	if runtime.GOOS != "windows" {
+		paths = append(paths, systemConfigPath)
+	}
 
-	// user config `~/.config/gonetsim/config.toml` or similar`
+	// user config `~/.config/gonetsim/config.toml` on unix
+	// `%APPDATA%\gonetsim\config.toml` on win
 	if d, err := os.UserConfigDir(); err == nil && d != "" {
 		paths = append(paths, filepath.Join(d, "gonetsim", "config.toml"))
 	}
