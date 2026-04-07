@@ -2,16 +2,10 @@ package cmd
 
 import (
 	"context"
-	"crypto/tls"
-	"errors"
-	"log"
-	"net"
-	"net/http"
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
-	"github.com/lachlanharrisdev/gonetsim/internal/runutil"
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsutil"
+	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -31,57 +25,14 @@ var httpsCmd = &cobra.Command{
 			return err
 		}
 
-		srv, err := httpserver.New(httpserver.Config{Addr: listen, StatusCode: httpsStatus}, nil)
-		if err != nil {
-			return err
-		}
-
-		ctx, stop := runutil.SignalContext(context.Background())
+		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
-
-		errCh := make(chan error, 1)
-		go func() {
-			if httpsCert != "" || httpsKey != "" {
-				errCh <- srv.ListenAndServeTLS(httpsCert, httpsKey)
-				return
-			}
-
-			cert, err := tlsutil.GenerateSelfSigned(tlsutil.SelfSignedOptions{
-				DNSNames: []string{"localhost"},
-				IPs:      []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
-			})
-			if err != nil {
-				errCh <- err
-				return
-			}
-
-			tlsConf := &tls.Config{
-				MinVersion:   tls.VersionTLS12,
-				Certificates: []tls.Certificate{cert},
-			}
-			srv.SetTLSConfig(tlsConf)
-
-			ln, err := net.Listen("tcp", listen)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			errCh <- srv.Serve(tls.NewListener(ln, tlsConf))
-		}()
-
-		select {
-		case <-ctx.Done():
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = srv.Shutdown(shutdownCtx)
-			return nil
-		case err := <-errCh:
-			if err == nil || errors.Is(err, http.ErrServerClosed) {
-				return nil
-			}
-			log.Printf("https: server error: %v", err)
-			return err
-		}
+		return httpserver.RunHTTPS(
+			ctx,
+			httpserver.Config{Addr: listen, StatusCode: httpsStatus},
+			httpserver.TLSOptions{CertFile: httpsCert, KeyFile: httpsKey},
+			httpserver.RunOptions{ShutdownTimeout: 5 * time.Second},
+		)
 	},
 }
 

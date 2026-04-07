@@ -1,7 +1,6 @@
 package dnsserver
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/netip"
@@ -28,21 +27,21 @@ func TestDNSServer_SinkholeResponses(t *testing.T) {
 		SinkholeIPv4: netip.MustParseAddr("203.0.113.10"),
 		SinkholeIPv6: netip.MustParseAddr("2001:db8::10"),
 	}
-	s, err := New(conf)
+	srv, err := NewServer(conf)
 	if err != nil {
 		// failed to create server with error
 		_ = pc.Close()
 		t.Fatalf("New: %v", err)
 	}
 
-	s.server.PacketConn = pc
+	srv.PacketConn = pc
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.server.ActivateAndServe()
+		errCh <- srv.ActivateAndServe()
 	}()
 	defer func() {
-		err = s.Shutdown(context.Background())
+		err = srv.Shutdown()
 		if err != nil {
 			// failed to shutdown server with error
 			t.Fatalf("Shutdown: %v", err)

@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"log"
-	"net/http"
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
-	"github.com/lachlanharrisdev/gonetsim/internal/runutil"
+	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -26,32 +23,9 @@ var httpCmd = &cobra.Command{
 			return err
 		}
 
-		srv, err := httpserver.New(httpserver.Config{Addr: listen, StatusCode: httpStatus}, nil)
-		if err != nil {
-			return err
-		}
-
-		ctx, stop := runutil.SignalContext(context.Background())
+		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
-
-		errCh := make(chan error, 1)
-		go func() {
-			errCh <- srv.ListenAndServe()
-		}()
-
-		select {
-		case <-ctx.Done():
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = srv.Shutdown(shutdownCtx)
-			return nil
-		case err := <-errCh:
-			if err == nil || errors.Is(err, http.ErrServerClosed) {
-				return nil
-			}
-			log.Printf("http: server error: %v", err)
-			return err
-		}
+		return httpserver.RunHTTP(ctx, httpserver.Config{Addr: listen, StatusCode: httpStatus}, httpserver.RunOptions{ShutdownTimeout: 5 * time.Second})
 	},
 }
 

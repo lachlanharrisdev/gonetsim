@@ -6,16 +6,16 @@ import (
 	"log"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/miekg/dns"
 )
 
-type Server struct {
-	conf   Config
-	server *dns.Server
+type RunOptions struct {
+	ShutdownTimeout time.Duration
 }
 
-func New(conf Config) (*Server, error) {
+func NewServer(conf Config) (*dns.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
@@ -34,24 +34,49 @@ func New(conf Config) (*Server, error) {
 		Net:     conf.Net,
 		Handler: mux,
 	}
-
-	return &Server{conf: conf, server: srv}, nil
+	return srv, nil
 }
 
-func (s *Server) ListenAndServe() error {
-	log.Printf("dns: listening on %s (%s), sinkhole=%s", s.conf.Addr, s.conf.Net, s.sinkholeSummary())
-	return s.server.ListenAndServe()
+func Run(ctx context.Context, conf Config, opts RunOptions) error {
+	srv, err := NewServer(conf)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("dns: listening on %s (%s), sinkhole=%s", conf.Addr, conf.Net, sinkholeSummary(conf))
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		shutdownTimeout := opts.ShutdownTimeout
+		if shutdownTimeout <= 0 {
+			shutdownTimeout = 5 * time.Second
+		}
+
+		shutdownErr := make(chan error, 1)
+		go func() { shutdownErr <- srv.Shutdown() }()
+
+		select {
+		case <-errCh:
+			return nil
+		case <-shutdownErr:
+			return nil
+		case <-time.After(shutdownTimeout):
+			return nil
+		}
+	case err := <-errCh:
+		return err
+	}
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
-	_ = ctx // miekg/dns shutdown isn't ctx aware
-	return s.server.Shutdown()
-}
-
-func (s *Server) sinkholeSummary() string {
-	parts := []string{s.conf.SinkholeIPv4.String()}
-	if s.conf.SinkholeIPv6.IsValid() {
-		parts = append(parts, s.conf.SinkholeIPv6.String())
+func sinkholeSummary(conf Config) string {
+	parts := []string{conf.SinkholeIPv4.String()}
+	if conf.SinkholeIPv6.IsValid() {
+		parts = append(parts, conf.SinkholeIPv6.String())
 	}
 	return strings.Join(parts, ",")
 }
