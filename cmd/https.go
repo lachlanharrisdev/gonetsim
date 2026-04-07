@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
@@ -29,7 +32,12 @@ var httpsCmd = &cobra.Command{
 		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
 
-		manager := service.NewManager(5 * time.Second)
+		logger, err := observability.NewLogger(appconfig.Default().Logging)
+		if err != nil {
+			return err
+		}
+		slog.SetDefault(logger)
+		manager := service.NewManager(5*time.Second, logger)
 		return manager.RunSingleService(ctx,
 			httpserver.NewHTTPSService(
 				httpserver.Config{Addr: listen, StatusCode: httpsStatus},

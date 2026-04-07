@@ -1,6 +1,9 @@
 package service
 
-import "context"
+import (
+	"context"
+	"log/slog"
+)
 
 type Service interface {
 	// unique identifier for the service, used in logging
@@ -11,4 +14,10 @@ type Service interface {
 
 	// stop gracefully shuts down the service within the given context deadline
 	Stop(ctx context.Context) error
+}
+
+// optional interface implemented by services that want
+// a logger injected by the service manager
+type LoggerAware interface {
+	SetLogger(logger *slog.Logger)
 }

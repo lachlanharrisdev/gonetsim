@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
@@ -16,6 +17,7 @@ type Server struct {
 	conf    Config
 	tlsOpts *TLSOptions
 	srv     *http.Server
+	log     *slog.Logger
 }
 
 func NewHTTPService(conf Config) service.Service {
@@ -31,6 +33,10 @@ func NewHTTPSService(conf Config, tlsOpts TLSOptions) service.Service {
 		conf:    conf,
 		tlsOpts: &tlsOpts,
 	}
+}
+
+func (s *Server) SetLogger(logger *slog.Logger) {
+	s.log = logger
 }
 
 type Config struct {

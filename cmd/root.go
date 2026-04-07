@@ -3,12 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/dnsserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
@@ -17,20 +18,27 @@ import (
 var rootConfigPath string
 
 var rootCmd = &cobra.Command{
-	Use:          "gonetsim",
-	Short:        "Network service simulator (dns + http + https)",
-	Args:         cobra.NoArgs,
-	SilenceUsage: true,
+	Use:           "gonetsim",
+	Short:         "Network service simulator (dns + http + https)",
+	Args:          cobra.NoArgs,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgRes, err := appconfig.LoadOrCreate(rootConfigPath)
 		if err != nil {
 			return err
 		}
-		if cfgRes.Created {
-			log.Printf("config: created default config at %s", cfgRes.Path)
-		}
-		log.Printf("config: using %s", cfgRes.Path)
 		cfg := cfgRes.Config
+
+		logger, err := observability.NewLogger(cfg.Logging)
+		if err != nil {
+			return err
+		}
+		slog.SetDefault(logger)
+		if cfgRes.Created {
+			logger.Info("config created", "path", cfgRes.Path)
+		}
+		logger.Info("config loaded", "path", cfgRes.Path)
 
 		ctx, stop := utils.SignalContext(context.Background())
 		defer stop()
@@ -38,7 +46,7 @@ var rootCmd = &cobra.Command{
 		runCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		manager := service.NewManager(cfg.General.ShutdownTimeout)
+		manager := service.NewManager(cfg.General.ShutdownTimeout, logger)
 
 		if cfg.DNS.Enabled {
 			listen, err := parseAddrPort(cfg.DNS.Listen)
@@ -85,14 +93,18 @@ var rootCmd = &cobra.Command{
 			manager.Add(httpserver.NewHTTPSService(conf, tlsOpts))
 		}
 
-		log.Printf("root: running (dns=%t http=%t https=%t)", cfg.DNS.Enabled, cfg.HTTP.Enabled, cfg.HTTPS.Enabled)
+		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled)
 
 		return manager.RunAll(runCtx)
 	},
 }
 
-func exitError(msg interface{}) {
-	fmt.Fprintln(os.Stderr, msg)
+func exitError(err error) {
+	if slog.Default() != nil {
+		slog.Error("fatal error", "err", err)
+	} else {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+	}
 	os.Exit(1)
 }
 

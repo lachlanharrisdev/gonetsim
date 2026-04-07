@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -12,12 +12,12 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
-func NewServer(conf Config, handler http.Handler) (*http.Server, error) {
+func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
 	if handler == nil {
-		handler = FakeHandler{StatusCode: conf.StatusCode}
+		handler = FakeHandler{StatusCode: conf.StatusCode, Logger: logger}
 	}
 
 	srv := &http.Server{
@@ -34,8 +34,12 @@ func (s *Server) Start(ctx context.Context) error {
 			return err
 		}
 	}
+	logger := s.log
+	if logger == nil {
+		logger = slog.Default().With("service", s.Name())
+	}
 
-	srv, err := NewServer(s.conf, nil)
+	srv, err := NewServer(s.conf, nil, logger)
 	if err != nil {
 		return err
 	}
@@ -56,7 +60,7 @@ func (s *Server) Start(ctx context.Context) error {
 		ln = tls.NewListener(ln, tlsConf)
 	}
 
-	log.Printf("%s: listening on %s", s.name, s.conf.Addr)
+	logger.Info("listening", "on", s.conf.Addr)
 	if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

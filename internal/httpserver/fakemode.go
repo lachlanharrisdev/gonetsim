@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	_ "embed"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"path"
@@ -33,6 +33,7 @@ var defaultIndexJS []byte
 type FakeHandler struct {
 	// if non-zero, forces this status code for all responses.
 	StatusCode int
+	Logger     *slog.Logger
 }
 
 type fakeMeta struct {
@@ -67,7 +68,22 @@ func (w *statusOverrideWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+type statusCaptureWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusCaptureWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
 func (h FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger := h.Logger
+	if logger == nil {
+		logger = slog.Default().With("service", "HTTP")
+	}
+
 	m := resolveFakeMeta(r.URL.Path)
 	gen := defaultFakeRegistry.lookup(m.ext)
 	resp := gen(r, m)
@@ -76,22 +92,28 @@ func (h FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", resp.contentType)
 	}
 
-	out := http.ResponseWriter(w)
+	cap := &statusCaptureWriter{ResponseWriter: w}
+	out := http.ResponseWriter(cap)
 	if h.StatusCode != 0 {
-		out = &statusOverrideWriter{ResponseWriter: w, status: h.StatusCode}
+		out = &statusOverrideWriter{ResponseWriter: cap, status: h.StatusCode}
 	}
 
-	log.Printf(
-		"http: %s %s host=%q ua=%q from=%s len=%d",
-		r.Method,
-		r.URL.String(),
-		r.Host,
-		r.UserAgent(),
-		r.RemoteAddr,
-		r.ContentLength,
-	)
-
 	http.ServeContent(out, r, m.name, resp.modTime, bytes.NewReader(resp.body))
+
+	status := cap.status
+	if status == 0 {
+		// ServeContent defaults to 200 if it wrote a body.
+		status = 200
+	}
+	logger.Info(
+		r.Method,
+		"src", r.RemoteAddr,
+		"to", r.URL.Path,
+		"status", status,
+		"host", r.Host,
+		"ua", r.UserAgent(),
+		"len", r.ContentLength,
+	)
 }
 
 func resolveFakeMeta(urlPath string) fakeMeta {

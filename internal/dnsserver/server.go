@@ -3,7 +3,7 @@ package dnsserver
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -12,11 +12,19 @@ import (
 )
 
 func NewServer(conf Config) (*dns.Server, error) {
+	return NewServerWithLogger(conf, nil)
+}
+
+func NewServerWithLogger(conf Config, logger *slog.Logger) (*dns.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	h := &handler{
+		logger:         logger,
 		sinkholeIPv4:   conf.SinkholeIPv4,
 		sinkholeIPv6:   conf.SinkholeIPv6,
 		sinkholeDomain: conf.SinkholeDomain,
@@ -38,13 +46,18 @@ func NewServer(conf Config) (*dns.Server, error) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	srv, err := NewServer(s.conf)
+	logger := s.log
+	if logger == nil {
+		logger = slog.Default().With("service", s.Name())
+	}
+
+	srv, err := NewServerWithLogger(s.conf, logger)
 	if err != nil {
 		return err
 	}
 	s.srv = srv
 
-	log.Printf("dns: listening on %s (%s), sinkhole=%s", s.conf.Addr, s.conf.Net, sinkholeSummary(s.conf))
+	logger.Info("listening", "on", s.conf.Addr, "net", s.conf.Net, "sinkhole", sinkholeSummary(s.conf))
 	if err := srv.ListenAndServe(); err != nil {
 		return err
 	}
@@ -67,6 +80,8 @@ func sinkholeSummary(conf Config) string {
 }
 
 type handler struct {
+	logger *slog.Logger
+
 	sinkholeIPv4   netip.Addr
 	sinkholeIPv6   netip.Addr
 	sinkholeDomain string
@@ -76,31 +91,37 @@ type handler struct {
 }
 
 func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
+	logger := h.logger
+	if logger == nil {
+		logger = slog.Default().With("service", "DNS")
+	}
+
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Compress = h.compress
 
 	for _, q := range r.Question {
-		log.Printf("dns: query name=%s type=%s from=%s", q.Name, dns.TypeToString[q.Qtype], w.RemoteAddr())
+		qtype := dns.TypeToString[q.Qtype]
+		logger.Info(qtype, "src", w.RemoteAddr().String(), "to", strings.TrimSuffix(q.Name, "."))
 		switch q.Qtype {
 		case dns.TypeA:
-			appendRecord(m, q, h.ttl, "A", h.sinkholeIPv4.String())
+			appendRecord(logger, m, q, h.ttl, "A", h.sinkholeIPv4.String())
 		case dns.TypeAAAA:
 			if h.sinkholeIPv6.IsValid() {
-				appendRecord(m, q, h.ttl, "AAAA", h.sinkholeIPv6.String())
+				appendRecord(logger, m, q, h.ttl, "AAAA", h.sinkholeIPv6.String())
 			}
 		case dns.TypeCNAME:
-			appendRecord(m, q, h.ttl, "CNAME", h.sinkholeDomain)
+			appendRecord(logger, m, q, h.ttl, "CNAME", h.sinkholeDomain)
 		case dns.TypeMX:
-			appendRecord(m, q, h.ttl, "MX", "10 "+h.sinkholeDomain)
+			appendRecord(logger, m, q, h.ttl, "MX", "10 "+h.sinkholeDomain)
 		case dns.TypeTXT:
-			appendRecord(m, q, h.ttl, "TXT", strconv.Quote(h.sinkholeTXT))
+			appendRecord(logger, m, q, h.ttl, "TXT", strconv.Quote(h.sinkholeTXT))
 		case dns.TypeNS:
-			appendRecord(m, q, h.ttl, "NS", h.sinkholeDomain)
+			appendRecord(logger, m, q, h.ttl, "NS", h.sinkholeDomain)
 		case dns.TypeSRV:
-			appendRecord(m, q, h.ttl, "SRV", "10 0 0 "+h.sinkholeDomain)
+			appendRecord(logger, m, q, h.ttl, "SRV", "10 0 0 "+h.sinkholeDomain)
 		case dns.TypePTR:
-			appendRecord(m, q, h.ttl, "PTR", h.sinkholeDomain)
+			appendRecord(logger, m, q, h.ttl, "PTR", h.sinkholeDomain)
 		default:
 			// ret NOERROR with empty Answer for other types
 		}
@@ -109,11 +130,14 @@ func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 	_ = w.WriteMsg(m)
 }
 
-func appendRecord(m *dns.Msg, q dns.Question, ttl uint32, rrType, data string) {
+func appendRecord(logger *slog.Logger, m *dns.Msg, q dns.Question, ttl uint32, rrType, data string) {
 	record := fmt.Sprintf("%s %d IN %s %s", q.Name, ttl, rrType, data)
 	if rr, err := dns.NewRR(record); err == nil {
 		m.Answer = append(m.Answer, rr)
 	} else {
-		log.Printf("dns: failed to create %s record for %s: %v", rrType, q.Name, err)
+		if logger == nil {
+			logger = slog.Default().With("service", "DNS")
+		}
+		logger.Error("failed to create record", "type", rrType, "name", q.Name, "err", err)
 	}
 }
