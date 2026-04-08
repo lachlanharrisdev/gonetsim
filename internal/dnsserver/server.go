@@ -11,11 +11,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-func NewServer(conf Config) (*dns.Server, error) {
-	return NewServerWithLogger(conf, nil)
-}
-
-func NewServerWithLogger(conf Config, logger *slog.Logger) (*dns.Server, error) {
+func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
@@ -51,7 +47,7 @@ func (s *Server) Start(ctx context.Context) error {
 		logger = slog.Default().With("service", s.Name())
 	}
 
-	srv, err := NewServerWithLogger(s.conf, logger)
+	srv, err := NewServer(s.conf, logger)
 	if err != nil {
 		return err
 	}

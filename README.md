@@ -12,7 +12,7 @@
   <p align="center" width="50">
     
   [![GitHub Repo stars](https://img.shields.io/github/stars/lachlanharrisdev/gonetsim?style=social)](https://github.com/lachlanharrisdev/gonetsim/stargazers)
-  [![GitHub](https://img.shields.io/github/license/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/?tab=Apache-2.0-1-ov-file)
+  [![GitHub](https://img.shields.io/github/license/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim?tab=Apache-2.0-1-ov-file)
   [![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/)
   [![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/lachlanharrisdev/gonetsim/ci.yaml?branch=main&label=CI)](https://github.com/lachlanharrisdev/gonetsim/actions)<br/>
   [![GitHub Release Status](https://img.shields.io/github/v/release/lachlanharrisdev/gonetsim)](https://github.com/lachlanharrisdev/gonetsim/releases/latest)
@@ -50,6 +50,9 @@ Alternatively, you can specify an individual service to run
 gonetsim dns
 gonetsim http
 gonetsim https
+gonetsim smtp
+gonetsim smtps
+...
 ```
 
 <br/>
