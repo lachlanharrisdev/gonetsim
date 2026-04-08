@@ -58,7 +58,7 @@ max_recipients = 50
 allow_insecure_auth = true
 
 [smtps]
-enabled = false
+enabled = true
 addr = ":1465"
 domain = "localhost"
 write_timeout = 10

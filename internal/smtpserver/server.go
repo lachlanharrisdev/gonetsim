@@ -113,13 +113,19 @@ type Backend struct {
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
-	return &Session{logger: bkd.logger}, nil
+	remoteAddr := c.Conn().RemoteAddr().String()
+	bkd.logger.Info("session started", "remote_addr", remoteAddr)
+	return &Session{logger: bkd.logger, remoteAddr: remoteAddr}, nil
 }
 
 // Session represents an SMTP session.
 type Session struct {
-	logger *slog.Logger
-	auth   bool
+	logger     *slog.Logger
+	remoteAddr string
+	auth       bool
+	username   string
+	from       string
+	recipients []string
 }
 
 // AuthMechanisms returns available authentication mechanisms.
@@ -130,10 +136,12 @@ func (s *Session) AuthMechanisms() []string {
 // Auth handles authentication.
 func (s *Session) Auth(mech string) (sasl.Server, error) {
 	return sasl.NewPlainServer(func(identity, username, password string) error {
-		if username != "username" || password != "password" {
-			s.logger.Info("invalid credentials", "username", username)
-			return errors.New("invalid username or password")
-		}
+		s.username = username
+		s.logger.Info("authentication attempt",
+			"remote_addr", s.remoteAddr,
+			"mechanism", mech,
+			"username", username,
+		)
 		s.auth = true
 		return nil
 	}), nil
@@ -144,7 +152,13 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 	if !s.auth {
 		return smtp.ErrAuthRequired
 	}
-	s.logger.Info("mail from", "address", from)
+	s.from = from
+	s.recipients = []string{} // Reset recipients for new message
+	s.logger.Info("mail from",
+		"remote_addr", s.remoteAddr,
+		"username", s.username,
+		"from", from,
+	)
 	return nil
 }
 
@@ -153,7 +167,14 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 	if !s.auth {
 		return smtp.ErrAuthRequired
 	}
-	s.logger.Info("rcpt to", "address", to)
+	s.recipients = append(s.recipients, to)
+	s.logger.Info("rcpt to",
+		"remote_addr", s.remoteAddr,
+		"username", s.username,
+		"from", s.from,
+		"to", to,
+		"recipient_count", len(s.recipients),
+	)
 	return nil
 }
 
@@ -162,11 +183,18 @@ func (s *Session) Data(r io.Reader) error {
 	if !s.auth {
 		return smtp.ErrAuthRequired
 	}
-	if b, err := io.ReadAll(r); err != nil {
+	b, err := io.ReadAll(r)
+	if err != nil {
 		return err
-	} else {
-		s.logger.Info("data received", "bytes", len(b))
 	}
+	s.logger.Info("message data received",
+		"remote_addr", s.remoteAddr,
+		"username", s.username,
+		"from", s.from,
+		"recipient_count", len(s.recipients),
+		"recipients", s.recipients,
+		"bytes", len(b),
+	)
 	return nil
 }
 
@@ -175,6 +203,10 @@ func (s *Session) Reset() {}
 
 // Logout closes the session.
 func (s *Session) Logout() error {
+	s.logger.Info("session closed",
+		"remote_addr", s.remoteAddr,
+		"username", s.username,
+	)
 	return nil
 }
 
