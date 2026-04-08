@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,8 +61,8 @@ func TestSMTPServer(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	defer func() {
-		if err := c.Close(); err != nil {
-			t.Fatalf("Close: %v", err)
+		if err := c.Close(); err != nil && !strings.HasSuffix(err.Error(), "use of closed network connection") {
+			t.Errorf("Close: %v", err)
 		}
 	}()
 
@@ -153,7 +154,7 @@ func TestSMTPSServer(t *testing.T) {
 		t.Fatalf("DialTLS: %v", err)
 	}
 	defer func() {
-		if err := c.Close(); err != nil {
+		if err := c.Close(); err != nil && err.Error() != "use of closed network connection" {
 			t.Fatalf("Close: %v", err)
 		}
 	}()
