@@ -29,7 +29,7 @@ func queryTestsHelper(t *testing.T) (client *dns.Client, addr string, config Con
 		TTL:            60,
 		Compress:       false,
 	}
-	srv, err := NewServer(conf)
+	srv, err := NewServer(conf, nil)
 	if err != nil {
 		// failed to create server with error
 		_ = pc.Close()

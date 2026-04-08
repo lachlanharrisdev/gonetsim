@@ -29,6 +29,8 @@ type Config struct {
 	DNS     DNSConfig     `koanf:"dns"`
 	HTTP    HTTPConfig    `koanf:"http"`
 	HTTPS   HTTPSConfig   `koanf:"https"`
+	SMTP    SMTPConfig    `koanf:"smtp"`
+	SMTPS   SMTPSConfig   `koanf:"smtps"`
 	Logging LoggingConfig `koanf:"logging"`
 }
 
@@ -62,6 +64,30 @@ type HTTPSConfig struct {
 	Key     string `koanf:"key"`
 }
 
+type SMTPConfig struct {
+	Enabled           bool   `koanf:"enabled"`
+	Addr              string `koanf:"addr"`                // ":1025"
+	Domain            string `koanf:"domain"`              // "localhost"
+	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
+	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
+	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
+	MaxRecipients     int    `koanf:"max_recipients"`      // 50
+	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // true
+}
+
+type SMTPSConfig struct {
+	Enabled           bool   `koanf:"enabled"`
+	Addr              string `koanf:"addr"`                // ":1465"
+	Domain            string `koanf:"domain"`              // "localhost"
+	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
+	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
+	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
+	MaxRecipients     int    `koanf:"max_recipients"`      // 50
+	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // false (secure)
+	Cert              string `koanf:"cert"`                // Optional TLS cert
+	Key               string `koanf:"key"`                 // Optional TLS key
+}
+
 type LoggingConfig struct {
 	LogFormat string `koanf:"format"`
 	Level     string `koanf:"level"`
@@ -90,6 +116,26 @@ func Default() Config {
 			Enabled: true,
 			Listen:  ":8443",
 			Status:  200,
+		},
+		SMTP: SMTPConfig{
+			Enabled:           true,
+			Addr:              ":1025",
+			Domain:            "localhost",
+			WriteTimeout:      10,
+			ReadTimeout:       10,
+			MaxMessageBytes:   1024 * 1024,
+			MaxRecipients:     50,
+			AllowInsecureAuth: true,
+		},
+		SMTPS: SMTPSConfig{
+			Enabled:           false,
+			Addr:              ":1465",
+			Domain:            "localhost",
+			WriteTimeout:      10,
+			ReadTimeout:       10,
+			MaxMessageBytes:   1024 * 1024,
+			MaxRecipients:     50,
+			AllowInsecureAuth: false,
 		},
 		Logging: LoggingConfig{
 			LogFormat: "text",
@@ -130,7 +176,22 @@ func (c Config) Validate() error {
 		}
 	}
 
-	if !c.DNS.Enabled && !c.HTTP.Enabled && !c.HTTPS.Enabled {
+	if c.SMTP.Enabled {
+		if c.SMTP.Addr == "" {
+			return errors.New("smtp.addr is required when smtp.enabled=true")
+		}
+	}
+
+	if c.SMTPS.Enabled {
+		if c.SMTPS.Addr == "" {
+			return errors.New("smtps.addr is required when smtps.enabled=true")
+		}
+		if (c.SMTPS.Cert == "") != (c.SMTPS.Key == "") {
+			return errors.New("smtps.cert and smtps.key must be set together")
+		}
+	}
+
+	if !c.DNS.Enabled && !c.HTTP.Enabled && !c.HTTPS.Enabled && !c.SMTP.Enabled && !c.SMTPS.Enabled {
 		return errors.New("at least one service must be enabled")
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,7 @@ var rootConfigPath string
 
 var rootCmd = &cobra.Command{
 	Use:           "gonetsim",
-	Short:         "Network service simulator (dns + http + https)",
+	Short:         "Starts all configured services",
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -93,7 +94,42 @@ var rootCmd = &cobra.Command{
 			manager.Add(httpserver.NewHTTPSService(conf, tlsOpts))
 		}
 
-		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled)
+		if cfg.SMTP.Enabled {
+			listen, err := parseAddrPort(cfg.SMTP.Addr)
+			if err != nil {
+				return fmt.Errorf("smtp.addr: %w", err)
+			}
+			conf := smtpserver.Config{
+				Addr:              listen,
+				Domain:            cfg.SMTP.Domain,
+				WriteTimeout:      cfg.SMTP.WriteTimeout,
+				ReadTimeout:       cfg.SMTP.ReadTimeout,
+				MaxMessageBytes:   cfg.SMTP.MaxMessageBytes,
+				MaxRecipients:     cfg.SMTP.MaxRecipients,
+				AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
+			}
+			manager.Add(smtpserver.NewSMTPService(conf))
+		}
+
+		if cfg.SMTPS.Enabled {
+			listen, err := parseAddrPort(cfg.SMTPS.Addr)
+			if err != nil {
+				return fmt.Errorf("smtps.addr: %w", err)
+			}
+			conf := smtpserver.Config{
+				Addr:              listen,
+				Domain:            cfg.SMTPS.Domain,
+				WriteTimeout:      cfg.SMTPS.WriteTimeout,
+				ReadTimeout:       cfg.SMTPS.ReadTimeout,
+				MaxMessageBytes:   cfg.SMTPS.MaxMessageBytes,
+				MaxRecipients:     cfg.SMTPS.MaxRecipients,
+				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
+			}
+			tlsOpts := smtpserver.TLSOptions{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
+			manager.Add(smtpserver.NewSMTPSService(conf, tlsOpts))
+		}
+
+		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled, "smtp", cfg.SMTP.Enabled, "smtps", cfg.SMTPS.Enabled)
 
 		return manager.RunAll(runCtx)
 	},

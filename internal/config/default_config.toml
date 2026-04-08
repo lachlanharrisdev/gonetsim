@@ -47,8 +47,25 @@ listen = ":8443"
 # Status code to return for all requests. 0 means default (200).
 status = 200
 
-# Optional TLS cert/key paths (PEM). If both are empty, gonetsim generates an
-# ephemeral self-signed certificate at startup.
+[smtp]
+enabled = true
+addr = ":1025"
+domain = "localhost"
+write_timeout = 10
+read_timeout = 10
+max_message_bytes = 1048576
+max_recipients = 50
+allow_insecure_auth = true
+
+[smtps]
+enabled = false
+addr = ":1465"
+domain = "localhost"
+write_timeout = 10
+read_timeout = 10
+max_message_bytes = 1048576
+max_recipients = 50
+allow_insecure_auth = false
 cert = ""
 key = ""
 
