@@ -128,7 +128,7 @@ func Default() Config {
 			AllowInsecureAuth: true,
 		},
 		SMTPS: SMTPSConfig{
-			Enabled:           false,
+			Enabled:           true,
 			Addr:              ":1465",
 			Domain:            "localhost",
 			WriteTimeout:      10,
