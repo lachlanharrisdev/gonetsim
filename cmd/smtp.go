@@ -25,7 +25,7 @@ var (
 
 var smtpCmd = &cobra.Command{
 	Use:   "smtp",
-	Short: "Run an SMTP server (insecure, no TLS)",
+	Short: "Run an SMTP server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		listen, err := parseAddrPort(smtpAddr)
 		if err != nil {
