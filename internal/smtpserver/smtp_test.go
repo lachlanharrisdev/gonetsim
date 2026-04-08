@@ -59,7 +59,11 @@ func TestSMTPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}()
 
 	if err := c.Auth(sasl.NewPlainClient("", "username", "password")); err != nil {
 		t.Fatalf("Auth: %v", err)
@@ -148,7 +152,11 @@ func TestSMTPSServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DialTLS: %v", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}()
 
 	if err := c.Auth(sasl.NewPlainClient("", "username", "password")); err != nil {
 		t.Fatalf("Auth: %v", err)
