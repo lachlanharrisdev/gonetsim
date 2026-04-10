@@ -109,7 +109,7 @@ func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.
 	}
 
 	wg.Wait()
-	return errors.New("all services stopped")
+	return nil
 }
 
 func stopRemaining(logger *slog.Logger, shutdownTimeout time.Duration, services []Service, exited map[Service]bool) {
