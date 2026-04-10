@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
-	"strconv"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -111,7 +110,7 @@ func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 		case dns.TypeMX:
 			appendRecord(logger, m, q, h.ttl, "MX", "10 "+h.sinkholeDomain)
 		case dns.TypeTXT:
-			appendRecord(logger, m, q, h.ttl, "TXT", strconv.Quote(h.sinkholeTXT))
+			appendRecord(logger, m, q, h.ttl, "TXT", h.sinkholeTXT)
 		case dns.TypeNS:
 			appendRecord(logger, m, q, h.ttl, "NS", h.sinkholeDomain)
 		case dns.TypeSRV:
