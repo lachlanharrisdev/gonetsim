@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -23,7 +24,8 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil, logger)
 	if err != nil {
 		// failed to create server with error
 		t.Fatalf("New: %v", err)
@@ -89,7 +91,8 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
 
-	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil, logger)
 	if err != nil {
 		// failed to create https server with error
 		t.Fatalf("New: %v", err)

@@ -28,9 +28,6 @@ func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Se
 
 func (s *Server) Start(ctx context.Context) error {
 	logger := s.log
-	if logger == nil {
-		logger = slog.Default().With("service", s.Name())
-	}
 
 	srv, err := NewServer(s.conf, nil, logger)
 	if err != nil {

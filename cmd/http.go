@@ -38,7 +38,7 @@ var httpCmd = &cobra.Command{
 		manager := service.NewManager(5*time.Second, logger)
 
 		return manager.RunSingleService(ctx,
-			httpserver.NewService(httpserver.Config{Addr: listen, StatusCode: httpStatus}),
+			httpserver.NewService(httpserver.Config{Addr: listen, StatusCode: httpStatus}, logger),
 		)
 	},
 }

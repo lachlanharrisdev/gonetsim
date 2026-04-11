@@ -21,16 +21,12 @@ type Server struct {
 	log  *slog.Logger
 }
 
-func NewService(conf Config) service.Service {
+func NewService(conf Config, logger *slog.Logger) service.Service {
 	name := "SMTP"
 	if conf.TLS != nil {
 		name = "SMTPS"
 	}
-	return &Server{name: name, conf: conf}
-}
-
-func (s *Server) SetLogger(logger *slog.Logger) {
-	s.log = logger
+	return &Server{name: name, conf: conf, log: service.NewPrefixedLogger(logger, name)}
 }
 
 type Config struct {

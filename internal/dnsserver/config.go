@@ -20,12 +20,8 @@ type Server struct {
 	log  *slog.Logger
 }
 
-func NewService(conf Config) service.Service {
-	return &Server{conf: conf}
-}
-
-func (s *Server) SetLogger(logger *slog.Logger) {
-	s.log = logger
+func NewService(conf Config, logger *slog.Logger) service.Service {
+	return &Server{conf: conf, log: service.NewPrefixedLogger(logger, "DNS")}
 }
 
 type Config struct {

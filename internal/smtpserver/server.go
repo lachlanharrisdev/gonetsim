@@ -17,27 +17,16 @@ type errorLogger struct {
 }
 
 func (l errorLogger) Printf(format string, v ...interface{}) {
-	if l.logger == nil {
-		slog.Error("smtp error", "msg", fmt.Sprintf(format, v...))
-		return
-	}
 	l.logger.Error("smtp error", "msg", fmt.Sprintf(format, v...))
 }
 
 func (l errorLogger) Println(v ...interface{}) {
-	if l.logger == nil {
-		slog.Error("smtp error", "msg", fmt.Sprintln(v...))
-		return
-	}
 	l.logger.Error("smtp error", "msg", fmt.Sprintln(v...))
 }
 
 func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
-	}
-	if logger == nil {
-		logger = slog.Default()
 	}
 
 	backend := &Backend{logger: logger}
@@ -66,9 +55,6 @@ func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
 
 func (s *Server) Start(ctx context.Context) error {
 	logger := s.log
-	if logger == nil {
-		logger = slog.Default().With("service", s.Name())
-	}
 
 	srv, err := NewServer(s.conf, logger)
 	if err != nil {

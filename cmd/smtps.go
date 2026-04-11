@@ -55,7 +55,7 @@ var smtpsCmd = &cobra.Command{
 				MaxRecipients:     smtpsMaxRecipients,
 				AllowInsecureAuth: smtpsAllowInsecureAuth,
 				TLS:               &tlsprovider.Config{CertFile: smtpsCert, KeyFile: smtpsKey},
-			}),
+			}, logger),
 		)
 	},
 }

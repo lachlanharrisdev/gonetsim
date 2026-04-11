@@ -80,9 +80,6 @@ func (w *statusCaptureWriter) WriteHeader(code int) {
 
 func (h FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.Logger
-	if logger == nil {
-		logger = slog.Default().With("service", "HTTP")
-	}
 
 	m := resolveFakeMeta(r.URL.Path)
 	gen := defaultFakeRegistry.lookup(m.ext)
