@@ -14,9 +14,6 @@ func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
-	if logger == nil {
-		logger = slog.Default()
-	}
 
 	h := &handler{
 		logger:         logger,
@@ -42,9 +39,6 @@ func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
 
 func (s *Server) Start(ctx context.Context) error {
 	logger := s.log
-	if logger == nil {
-		logger = slog.Default().With("service", s.Name())
-	}
 
 	srv, err := NewServer(s.conf, logger)
 	if err != nil {
@@ -95,9 +89,6 @@ type handler struct {
 
 func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 	logger := h.logger
-	if logger == nil {
-		logger = slog.Default().With("service", "DNS")
-	}
 
 	m := new(dns.Msg)
 	m.SetReply(r)
@@ -138,9 +129,6 @@ func appendRecord(logger *slog.Logger, m *dns.Msg, q dns.Question, ttl uint32, r
 	if rr, err := dns.NewRR(record); err == nil {
 		m.Answer = append(m.Answer, rr)
 	} else {
-		if logger == nil {
-			logger = slog.Default().With("service", "DNS")
-		}
 		logger.Error("failed to create record", "type", rrType, "name", q.Name, "err", err)
 	}
 }

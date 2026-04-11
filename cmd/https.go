@@ -44,7 +44,7 @@ var httpsCmd = &cobra.Command{
 				Addr:       listen,
 				StatusCode: httpsStatus,
 				TLS:        &tlsprovider.Config{CertFile: httpsCert, KeyFile: httpsKey},
-			}),
+			}, logger),
 		)
 	},
 }

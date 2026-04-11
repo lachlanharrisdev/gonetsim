@@ -5,37 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 )
-
-// prefix handling system, so prefix for services is display whilst still being able to use lmittman/tint
-type prefixHandler struct {
-	prefix string
-	next   slog.Handler
-}
-
-func (h *prefixHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.next.Enabled(ctx, level)
-}
-
-func (h *prefixHandler) Handle(ctx context.Context, r slog.Record) error {
-	r2 := slog.NewRecord(r.Time, r.Level, h.prefix+r.Message, r.PC)
-	r.Attrs(func(a slog.Attr) bool {
-		r2.AddAttrs(a)
-		return true
-	})
-	return h.next.Handle(ctx, r2)
-}
-
-func (h *prefixHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &prefixHandler{prefix: h.prefix, next: h.next.WithAttrs(attrs)}
-}
-
-func (h *prefixHandler) WithGroup(name string) slog.Handler {
-	return &prefixHandler{prefix: h.prefix, next: h.next.WithGroup(name)}
-}
 
 type Manager struct {
 	services        []Service
@@ -44,9 +16,6 @@ type Manager struct {
 }
 
 func NewManager(shutdownTimeout time.Duration, logger *slog.Logger) *Manager {
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &Manager{shutdownTimeout: shutdownTimeout, logger: logger}
 }
 
@@ -73,9 +42,6 @@ func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.
 	}
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = 5 * time.Second
-	}
-	if logger == nil {
-		logger = slog.Default()
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
@@ -115,9 +81,6 @@ func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.
 func stopRemaining(logger *slog.Logger, shutdownTimeout time.Duration, services []Service, exited map[Service]bool) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	if logger == nil {
-		logger = slog.Default()
-	}
 
 	var stopWG sync.WaitGroup
 	for _, svc := range services {
@@ -138,14 +101,7 @@ func stopRemaining(logger *slog.Logger, shutdownTimeout time.Duration, services 
 
 func runService(wg *sync.WaitGroup, ctx context.Context, rootLogger *slog.Logger, service Service, exitCh chan<- serviceExit) {
 	defer wg.Done()
-	if rootLogger == nil {
-		rootLogger = slog.Default()
-	}
-	prefix := fmt.Sprintf("%-5s ", strings.ToUpper(service.Name()))
-	logger := slog.New(&prefixHandler{prefix: prefix, next: rootLogger.Handler()})
-	if la, ok := service.(LoggerAware); ok {
-		la.SetLogger(logger)
-	}
+	logger := NewPrefixedLogger(rootLogger, service.Name())
 
 	defer func() {
 		if r := recover(); r != nil {

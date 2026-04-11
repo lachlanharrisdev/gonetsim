@@ -2,6 +2,8 @@ package dnsserver
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"testing"
@@ -29,7 +31,8 @@ func queryTestsHelper(t *testing.T) (client *dns.Client, addr string, config Con
 		TTL:            60,
 		Compress:       false,
 	}
-	srv, err := NewServer(conf, nil)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv, err := NewServer(conf, logger)
 	if err != nil {
 		// failed to create server with error
 		_ = pc.Close()

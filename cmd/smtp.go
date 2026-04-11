@@ -51,7 +51,7 @@ var smtpCmd = &cobra.Command{
 				MaxMessageBytes:   smtpMaxMessageBytes,
 				MaxRecipients:     smtpMaxRecipients,
 				AllowInsecureAuth: smtpAllowInsecureAuth,
-			}),
+			}, logger),
 		)
 	},
 }

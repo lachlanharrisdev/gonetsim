@@ -57,7 +57,7 @@ var dnsCmd = &cobra.Command{
 		}
 		slog.SetDefault(logger)
 		manager := service.NewManager(5*time.Second, logger)
-		return manager.RunSingleService(ctx, dnsserver.NewService(conf))
+		return manager.RunSingleService(ctx, dnsserver.NewService(conf, logger))
 	},
 }
 

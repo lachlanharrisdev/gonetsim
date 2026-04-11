@@ -33,7 +33,7 @@ func TestSMTPServer(t *testing.T) {
 		MaxMessageBytes:   1024 * 1024,
 		MaxRecipients:     50,
 		AllowInsecureAuth: true,
-	}, nil)
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

@@ -73,7 +73,7 @@ var rootCmd = &cobra.Command{
 				TTL:            cfg.DNS.TTL,
 				Compress:       cfg.DNS.Compress,
 			}
-			manager.Add(dnsserver.NewService(conf))
+			manager.Add(dnsserver.NewService(conf, logger))
 		}
 
 		if cfg.HTTP.Enabled {
@@ -82,7 +82,7 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("http.listen: %w", err)
 			}
 			conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTP.Status}
-			manager.Add(httpserver.NewService(conf))
+			manager.Add(httpserver.NewService(conf, logger))
 		}
 
 		if cfg.HTTPS.Enabled {
@@ -95,7 +95,7 @@ var rootCmd = &cobra.Command{
 				StatusCode: cfg.HTTPS.Status,
 				TLS:        &tlsprovider.Config{CertFile: cfg.HTTPS.Cert, KeyFile: cfg.HTTPS.Key},
 			}
-			manager.Add(httpserver.NewService(conf))
+			manager.Add(httpserver.NewService(conf, logger))
 		}
 
 		if cfg.SMTP.Enabled {
@@ -112,7 +112,7 @@ var rootCmd = &cobra.Command{
 				MaxRecipients:     cfg.SMTP.MaxRecipients,
 				AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
 			}
-			manager.Add(smtpserver.NewService(conf))
+			manager.Add(smtpserver.NewService(conf, logger))
 		}
 
 		if cfg.SMTPS.Enabled {
@@ -130,7 +130,7 @@ var rootCmd = &cobra.Command{
 				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 			}
 			conf.TLS = &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
-			manager.Add(smtpserver.NewService(conf))
+			manager.Add(smtpserver.NewService(conf, logger))
 		}
 
 		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled, "smtp", cfg.SMTP.Enabled, "smtps", cfg.SMTPS.Enabled)
