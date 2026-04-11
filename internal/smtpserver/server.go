@@ -204,8 +204,6 @@ func (s *Session) Data(r io.Reader) error {
 
 // Reset clears the session state.
 func (s *Session) Reset() {
-	s.auth = false
-	s.username = ""
 	s.from = ""
 	s.recipients = []string{}
 	s.logger.Info("session reset",
