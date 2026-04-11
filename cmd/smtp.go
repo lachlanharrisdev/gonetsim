@@ -43,17 +43,15 @@ var smtpCmd = &cobra.Command{
 		manager := service.NewManager(5*time.Second, logger)
 
 		return manager.RunSingleService(ctx,
-			smtpserver.NewSMTPService(
-				smtpserver.Config{
-					Addr:              listen,
-					Domain:            smtpDomain,
-					WriteTimeout:      smtpWriteTimeout,
-					ReadTimeout:       smtpReadTimeout,
-					MaxMessageBytes:   smtpMaxMessageBytes,
-					MaxRecipients:     smtpMaxRecipients,
-					AllowInsecureAuth: smtpAllowInsecureAuth,
-				},
-			),
+			smtpserver.NewService(smtpserver.Config{
+				Addr:              listen,
+				Domain:            smtpDomain,
+				WriteTimeout:      smtpWriteTimeout,
+				ReadTimeout:       smtpReadTimeout,
+				MaxMessageBytes:   smtpMaxMessageBytes,
+				MaxRecipients:     smtpMaxRecipients,
+				AllowInsecureAuth: smtpAllowInsecureAuth,
+			}),
 		)
 	},
 }

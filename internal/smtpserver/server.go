@@ -2,7 +2,6 @@ package smtpserver
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -11,8 +10,6 @@ import (
 
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
-
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
 type errorLogger struct {
@@ -35,7 +32,7 @@ func (l errorLogger) Println(v ...interface{}) {
 	l.logger.Error("smtp error", "msg", fmt.Sprintln(v...))
 }
 
-func NewServer(conf Config, tlsOpts *TLSOptions, logger *slog.Logger) (*smtp.Server, error) {
+func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
 	if err := conf.validate(); err != nil {
 		return nil, err
 	}
@@ -55,11 +52,8 @@ func NewServer(conf Config, tlsOpts *TLSOptions, logger *slog.Logger) (*smtp.Ser
 	srv.ReadTimeout = time.Duration(conf.ReadTimeout) * time.Second
 	srv.WriteTimeout = time.Duration(conf.WriteTimeout) * time.Second
 
-	if tlsOpts != nil {
-		if err := tlsOpts.validate(); err != nil {
-			return nil, err
-		}
-		tlsConf, err := buildTLSConfig(*tlsOpts)
+	if conf.TLS != nil {
+		tlsConf, err := conf.TLS.TLSConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -76,14 +70,14 @@ func (s *Server) Start(ctx context.Context) error {
 		logger = slog.Default().With("service", s.Name())
 	}
 
-	srv, err := NewServer(s.conf, s.tlsOpts, logger)
+	srv, err := NewServer(s.conf, logger)
 	if err != nil {
 		return err
 	}
 	s.srv = srv
 
 	logger.Info("listening", "on", s.conf.Addr)
-	if s.tlsOpts != nil {
+	if s.conf.TLS != nil {
 		if err := srv.ListenAndServeTLS(); err != nil {
 			return err
 		}
@@ -215,20 +209,4 @@ func (s *Session) Logout() error {
 		"username", s.username,
 	)
 	return nil
-}
-
-func buildTLSConfig(tlsOpts TLSOptions) (*tls.Config, error) {
-	if tlsOpts.isProvided() {
-		cert, err := tls.LoadX509KeyPair(tlsOpts.CertFile, tlsOpts.KeyFile)
-		if err != nil {
-			return nil, err
-		}
-		return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}, nil
-	}
-
-	cert, err := tlsprovider.GenerateSelfSigned(tlsprovider.SelfSignedOptions{DNSNames: []string{"localhost"}})
-	if err != nil {
-		return nil, err
-	}
-	return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}, nil
 }
