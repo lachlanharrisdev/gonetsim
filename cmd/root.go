@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/dnsserver"
@@ -13,7 +15,6 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
-	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +46,7 @@ var rootCmd = &cobra.Command{
 		}
 		logger.Info("config loaded", "path", cfgRes.Path)
 
-		ctx, stop := utils.SignalContext(context.Background())
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
 		runCtx, cancel := context.WithCancel(ctx)

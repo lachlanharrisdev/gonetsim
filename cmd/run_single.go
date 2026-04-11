@@ -3,11 +3,13 @@ package cmd
 import (
 	"context"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
-	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +25,7 @@ func runSingleServiceCommand(cmd *cobra.Command, overrides []flagOverride, facto
 		return err
 	}
 
-	ctx, stop := utils.SignalContext(context.Background())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	logger, err := observability.NewLogger(cfg.Logging)
