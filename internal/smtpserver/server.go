@@ -118,6 +118,7 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
 			s.username = username
+			s.auth = true
 			s.logger.Info("authentication attempt",
 				"remote_addr", s.remoteAddr,
 				"mechanism", mech,
@@ -127,6 +128,7 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 	case sasl.Anonymous:
 		return sasl.NewAnonymousServer(func(trace string) error {
 			s.username = trace
+			s.auth = true
 			s.logger.Info("authentication attempt",
 				"remote_addr", s.remoteAddr,
 				"mechanism", mech,
@@ -136,12 +138,18 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 	case sasl.Login:
 		return smtputils.NewLoginServer(func(username, password string) error {
 			s.username = username
+			s.auth = true
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
 			return nil
 		}), nil
 	default: // default to ANONYMOUS to hopefully satisfy clients
 		s.logger.Warn("unsupported authentication mechanism; defaulting to ANONYMOUS", "remote_addr", s.remoteAddr, "mechanism", mech)
 		return sasl.NewAnonymousServer(func(trace string) error {
 			s.username = trace
+			s.auth = true
 			s.logger.Info("authentication attempt",
 				"remote_addr", s.remoteAddr,
 				"mechanism", mech,
