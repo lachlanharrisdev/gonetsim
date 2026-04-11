@@ -109,7 +109,7 @@ type Session struct {
 
 // AuthMechanisms returns available authentication mechanisms.
 func (s *Session) AuthMechanisms() []string {
-	return []string{sasl.Plain, sasl.Anonymous, sasl.Login, sasl.OAuthBearer}
+	return []string{sasl.Plain, sasl.Anonymous, sasl.Login, sasl.OAuthBearer, sasl.External}
 }
 
 // Auth handles authentication.
