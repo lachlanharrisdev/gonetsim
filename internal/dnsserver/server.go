@@ -42,14 +42,6 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.srv = srv
 
-	go func() {
-		<-ctx.Done()
-		err = s.srv.ShutdownContext(context.Background())
-		if err != nil {
-			logger.Error("failed to shutdown DNS server", "err", err)
-		}
-	}()
-
 	logger.Info("listening", "on", s.conf.Addr, "net", s.conf.Net, "sinkhole", sinkholeSummary(s.conf))
 	if err := srv.ListenAndServe(); err != nil {
 		return err
