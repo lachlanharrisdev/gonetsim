@@ -20,51 +20,85 @@ type SelfSignedOptions struct {
 }
 
 func GenerateSelfSigned(opts SelfSignedOptions) (tls.Certificate, error) {
+	certPEM, keyPEM, _, err := GenerateSelfSignedWithCA(opts)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	return tls.X509KeyPair(certPEM, keyPEM)
+}
+
+func GenerateSelfSignedWithCA(opts SelfSignedOptions) (certPEM []byte, keyPEM []byte, caPEM []byte, err error) {
 	validFor := opts.ValidFor
 	if validFor == 0 {
 		validFor = 365 * 24 * time.Hour
 	}
 
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
 	notBefore := time.Now().Add(-5 * time.Minute)
-	tmpl := &x509.Certificate{
-		SerialNumber: serialNumber,
+
+	caPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	caSerial, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	caTmpl := &x509.Certificate{
+		SerialNumber: caSerial,
+		Subject: pkix.Name{
+			CommonName:   "gonetsim CA",
+			Organization: []string{"gonetsim"},
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notBefore.Add(validFor),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caPriv.PublicKey, caPriv)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	caPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+
+	serverPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	serverSerial, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	serverTmpl := &x509.Certificate{
+		SerialNumber: serverSerial,
 		Subject: pkix.Name{
 			CommonName:   "gonetsim",
 			Organization: []string{"gonetsim"},
 		},
 		NotBefore: notBefore,
 		NotAfter:  notBefore.Add(validFor),
-
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+		},
 		BasicConstraintsValid: true,
-
-		DNSNames:    append([]string(nil), opts.DNSNames...),
-		IPAddresses: append([]net.IP(nil), opts.IPs...),
+		DNSNames:              append([]string(nil), opts.DNSNames...),
+		IPAddresses:           append([]net.IP(nil), opts.IPs...),
 	}
-
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
+	serverDER, err := x509.CreateCertificate(rand.Reader, serverTmpl, caTmpl, &serverPriv.PublicKey, caPriv)
 	if err != nil {
-		return tls.Certificate{}, err
+		return nil, nil, nil, err
 	}
+	leafPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER})
 
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	keyBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(serverPriv)
 	if err != nil {
-		return tls.Certificate{}, err
+		return nil, nil, nil, err
 	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes})
 
-	return tls.X509KeyPair(certPEM, keyPEM)
+	certPEM = append(append([]byte(nil), leafPEM...), caPEM...)
+	return certPEM, keyPEM, caPEM, nil
 }

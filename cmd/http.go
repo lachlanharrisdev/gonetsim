@@ -19,7 +19,7 @@ var httpCmd = &cobra.Command{
 				{flag: "listen", key: "http.listen", kind: overrideString},
 				{flag: "status", key: "http.status", kind: overrideInt},
 			},
-			func(cfg appconfig.Config, logger *slog.Logger) (service.Service, error) {
+			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.HTTP.Listen)
 				if err != nil {
 					return nil, fmt.Errorf("http.listen: %w", err)

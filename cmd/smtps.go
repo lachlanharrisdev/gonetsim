@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
@@ -27,10 +28,17 @@ var smtpsCmd = &cobra.Command{
 				{flag: "cert", key: "smtps.cert", kind: overrideString},
 				{flag: "key", key: "smtps.key", kind: overrideString},
 			},
-			func(cfg appconfig.Config, logger *slog.Logger) (service.Service, error) {
+			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.SMTPS.Addr)
 				if err != nil {
 					return nil, fmt.Errorf("smtps.addr: %w", err)
+				}
+
+				certPath := cfg.SMTPS.Cert
+				keyPath := cfg.SMTPS.Key
+				if certPath == "" && keyPath == "" {
+					certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
+					keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
 				}
 				conf := smtpserver.Config{
 					Addr:              listen,
@@ -41,7 +49,7 @@ var smtpsCmd = &cobra.Command{
 					MaxRecipients:     cfg.SMTPS.MaxRecipients,
 					RequireAuth:       cfg.SMTPS.RequireAuth,
 					AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
-					TLS:               &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key},
+					TLS:               &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
 				}
 				if err := conf.Validate(); err != nil {
 					return nil, fmt.Errorf("smtps: %w", err)

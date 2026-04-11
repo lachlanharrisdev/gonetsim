@@ -21,7 +21,7 @@ var dnsCmd = &cobra.Command{
 				{flag: "ipv4", key: "dns.ipv4", kind: overrideString},
 				{flag: "ipv6", key: "dns.ipv6", kind: overrideString},
 			},
-			func(cfg appconfig.Config, logger *slog.Logger) (service.Service, error) {
+			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.DNS.Listen)
 				if err != nil {
 					return nil, fmt.Errorf("dns.listen: %w", err)
