@@ -7,6 +7,7 @@ WORKDIR /src
 RUN apk add --no-cache ca-certificates git
 
 COPY go.mod go.sum ./
+COPY third_party ./third_party
 RUN go mod download
 
 COPY . ./

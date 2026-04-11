@@ -18,6 +18,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 )
 
+replace github.com/emersion/go-sasl => ./third_party/go-sasl
+
 require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
