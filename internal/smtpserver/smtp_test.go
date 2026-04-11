@@ -32,6 +32,7 @@ func TestSMTPServer(t *testing.T) {
 		ReadTimeout:       10,
 		MaxMessageBytes:   1024 * 1024,
 		MaxRecipients:     50,
+		RequireAuth:       true, // this test will use requireauth, smtps test will not
 		AllowInsecureAuth: true,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
@@ -116,6 +117,7 @@ func TestSMTPSServer(t *testing.T) {
 		ReadTimeout:       10,
 		MaxMessageBytes:   1024 * 1024,
 		MaxRecipients:     50,
+		RequireAuth:       false,
 		AllowInsecureAuth: false,
 	}, logger)
 	if err != nil {

@@ -36,6 +36,7 @@ var smtpCmd = &cobra.Command{
 					ReadTimeout:       cfg.SMTP.ReadTimeout,
 					MaxMessageBytes:   cfg.SMTP.MaxMessageBytes,
 					MaxRecipients:     cfg.SMTP.MaxRecipients,
+					RequireAuth:       cfg.SMTP.RequireAuth,
 					AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
 				}
 				if err := conf.Validate(); err != nil {

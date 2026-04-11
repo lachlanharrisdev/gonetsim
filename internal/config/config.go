@@ -73,6 +73,7 @@ type SMTPConfig struct {
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
 	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
 	MaxRecipients     int    `koanf:"max_recipients"`      // 50
+	RequireAuth       bool   `koanf:"require_auth"`        // false
 	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // true
 }
 
@@ -84,6 +85,7 @@ type SMTPSConfig struct {
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
 	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
 	MaxRecipients     int    `koanf:"max_recipients"`      // 50
+	RequireAuth       bool   `koanf:"require_auth"`        // false
 	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // false (secure)
 	Cert              string `koanf:"cert"`                // Optional TLS cert
 	Key               string `koanf:"key"`                 // Optional TLS key
@@ -126,6 +128,7 @@ func Default() Config {
 			ReadTimeout:       10,
 			MaxMessageBytes:   1024 * 1024,
 			MaxRecipients:     50,
+			RequireAuth:       false,
 			AllowInsecureAuth: true,
 		},
 		SMTPS: SMTPSConfig{
@@ -136,6 +139,7 @@ func Default() Config {
 			ReadTimeout:       10,
 			MaxMessageBytes:   1024 * 1024,
 			MaxRecipients:     50,
+			RequireAuth:       false,
 			AllowInsecureAuth: false,
 		},
 		Logging: LoggingConfig{

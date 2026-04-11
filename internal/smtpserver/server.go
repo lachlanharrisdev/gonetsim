@@ -25,7 +25,7 @@ func (l errorLogger) Println(v ...interface{}) {
 }
 
 func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
-	backend := &Backend{logger: logger}
+	backend := &Backend{logger: logger, requireAuth: conf.RequireAuth}
 
 	// Use smtp.NewServer to ensure internal fields like 'done' channel are initialized
 	srv := smtp.NewServer(backend)
@@ -84,24 +84,26 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // Backend implements SMTP server methods.
 type Backend struct {
-	logger *slog.Logger
+	logger      *slog.Logger
+	requireAuth bool
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	remoteAddr := c.Conn().RemoteAddr().String()
 	bkd.logger.Info("session started", "remote_addr", remoteAddr)
-	return &Session{logger: bkd.logger, remoteAddr: remoteAddr}, nil
+	return &Session{logger: bkd.logger, remoteAddr: remoteAddr, requireAuth: bkd.requireAuth}, nil
 }
 
 // Session represents an SMTP session.
 type Session struct {
-	logger     *slog.Logger
-	remoteAddr string
-	auth       bool
-	username   string
-	from       string
-	recipients []string
+	logger      *slog.Logger
+	remoteAddr  string
+	requireAuth bool
+	auth        bool
+	username    string
+	from        string
+	recipients  []string
 }
 
 // AuthMechanisms returns available authentication mechanisms.
@@ -125,7 +127,7 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 
 // Mail handles MAIL FROM command.
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	if !s.auth {
+	if s.requireAuth && !s.auth {
 		return smtp.ErrAuthRequired
 	}
 	s.from = from
@@ -140,7 +142,7 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 
 // Rcpt handles RCPT TO command.
 func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
-	if !s.auth {
+	if s.requireAuth && !s.auth {
 		return smtp.ErrAuthRequired
 	}
 	s.recipients = append(s.recipients, to)
@@ -156,7 +158,7 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 
 // Data handles the message data.
 func (s *Session) Data(r io.Reader) error {
-	if !s.auth {
+	if s.requireAuth && !s.auth {
 		return smtp.ErrAuthRequired
 	}
 	b, err := io.ReadAll(r)
