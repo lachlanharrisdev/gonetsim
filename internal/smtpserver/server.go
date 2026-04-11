@@ -139,7 +139,7 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 			return nil
 		}), nil
 	default: // default to ANONYMOUS to hopefully satisfy clients
-		s.logger.Warn("unsupported authentication mechanism: %s; defaulting to ANONYMOUS", mech)
+		s.logger.Warn("unsupported authentication mechanism; defaulting to ANONYMOUS", "remote_addr", s.remoteAddr, "mechanism", mech)
 		return sasl.NewAnonymousServer(func(trace string) error {
 			s.username = trace
 			s.logger.Info("authentication attempt",
