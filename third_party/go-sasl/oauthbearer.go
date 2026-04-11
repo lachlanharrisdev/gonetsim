@@ -100,7 +100,7 @@ func (a *oauthBearerServer) Next(response []byte) (challenge []byte, done bool, 
 		// protocol-specific SASL cancel response ('*'). However, GS2 (and
 		// indirectly OAUTHBEARER) defines a protocol-independent way to do so
 		// using 0x01.
-		if len(response) != 1 && response[0] != 0x01 {
+		if len(response) != 1 || response[0] != 0x01 {
 			return nil, true, errors.New("sasl: invalid response")
 		}
 		return nil, true, a.failErr
