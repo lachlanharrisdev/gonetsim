@@ -42,10 +42,9 @@ var tlsCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Fprintln(cmd.OutOrStdout(), "TLS OK")
-		fmt.Fprintln(cmd.OutOrStdout(), "cert:", certPath)
-		fmt.Fprintln(cmd.OutOrStdout(), "key: ", keyPath)
-		fmt.Fprintln(cmd.OutOrStdout(), "ca:  ", caPath)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TLS OK\ncert: %s\nkey:  %s\nca:   %s\n", certPath, keyPath, caPath); err != nil {
+			return err
+		}
 		return nil
 	},
 }
