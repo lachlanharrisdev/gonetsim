@@ -4,7 +4,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      time: "15:00"
+      day: "monday"
+      timezone: "Australia/Sydney"
+    labels: ["scope: ci", "scope: deps", "priority: low"]
   - package-ecosystem: "gomod"
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+      time: "15:00"
+      timezone: "Australia/Sydney"
+    labels: ["scope: deps", "priority: medium"]
