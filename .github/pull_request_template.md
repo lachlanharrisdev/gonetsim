@@ -19,4 +19,4 @@
 > - [ ] Tests pass locally on my machine (i.e. `go test ./...`)
 >   - [ ] Relevant tests have been updated / created
 >   - [ ] Code passes linting checks (i.e. `golangci-lint run`; [install](https://golangci-lint.run/docs/welcome/install/local/))
-> - [ ] Relevant documentation has been updated / created ([here](github.com/lachlanharrisdev/gonetsim-docs))
+> - [ ] Relevant documentation has been updated / created ([here](https://github.com/lachlanharrisdev/gonetsim-docs))
