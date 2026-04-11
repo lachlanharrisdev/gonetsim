@@ -33,7 +33,7 @@ func TestSMTPServer(t *testing.T) {
 		MaxMessageBytes:   1024 * 1024,
 		MaxRecipients:     50,
 		AllowInsecureAuth: true,
-	}, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestSMTPSServer(t *testing.T) {
 		MaxMessageBytes:   1024 * 1024,
 		MaxRecipients:     50,
 		AllowInsecureAuth: false,
-	}, nil, logger)
+	}, logger)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

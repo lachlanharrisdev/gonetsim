@@ -9,6 +9,7 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -45,18 +46,16 @@ var smtpsCmd = &cobra.Command{
 		manager := service.NewManager(5*time.Second, logger)
 
 		return manager.RunSingleService(ctx,
-			smtpserver.NewSMTPSService(
-				smtpserver.Config{
-					Addr:              listen,
-					Domain:            smtpsDomain,
-					WriteTimeout:      smtpsWriteTimeout,
-					ReadTimeout:       smtpsReadTimeout,
-					MaxMessageBytes:   smtpsMaxMessageBytes,
-					MaxRecipients:     smtpsMaxRecipients,
-					AllowInsecureAuth: smtpsAllowInsecureAuth,
-				},
-				smtpserver.TLSOptions{CertFile: smtpsCert, KeyFile: smtpsKey},
-			),
+			smtpserver.NewService(smtpserver.Config{
+				Addr:              listen,
+				Domain:            smtpsDomain,
+				WriteTimeout:      smtpsWriteTimeout,
+				ReadTimeout:       smtpsReadTimeout,
+				MaxMessageBytes:   smtpsMaxMessageBytes,
+				MaxRecipients:     smtpsMaxRecipients,
+				AllowInsecureAuth: smtpsAllowInsecureAuth,
+				TLS:               &tlsprovider.Config{CertFile: smtpsCert, KeyFile: smtpsKey},
+			}),
 		)
 	},
 }

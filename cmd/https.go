@@ -9,6 +9,7 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -39,10 +40,11 @@ var httpsCmd = &cobra.Command{
 		slog.SetDefault(logger)
 		manager := service.NewManager(5*time.Second, logger)
 		return manager.RunSingleService(ctx,
-			httpserver.NewHTTPSService(
-				httpserver.Config{Addr: listen, StatusCode: httpsStatus},
-				httpserver.TLSOptions{CertFile: httpsCert, KeyFile: httpsKey},
-			),
+			httpserver.NewService(httpserver.Config{
+				Addr:       listen,
+				StatusCode: httpsStatus,
+				TLS:        &tlsprovider.Config{CertFile: httpsCert, KeyFile: httpsKey},
+			}),
 		)
 	},
 }

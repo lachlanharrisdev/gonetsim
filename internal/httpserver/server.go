@@ -8,8 +8,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
 func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Server, error) {
@@ -29,11 +27,6 @@ func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Se
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	if s.tlsOpts != nil {
-		if err := s.tlsOpts.validate(); err != nil {
-			return err
-		}
-	}
 	logger := s.log
 	if logger == nil {
 		logger = slog.Default().With("service", s.Name())
@@ -51,8 +44,8 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	defer func() { _ = ln.Close() }()
 
-	if s.tlsOpts != nil {
-		tlsConf, err := buildTLSConfig(*s.tlsOpts)
+	if s.conf.TLS != nil {
+		tlsConf, err := s.conf.TLS.TLSConfig()
 		if err != nil {
 			return err
 		}
@@ -72,20 +65,4 @@ func (s *Server) Stop(ctx context.Context) error {
 		return s.srv.Shutdown(ctx)
 	}
 	return nil
-}
-
-func buildTLSConfig(tlsOpts TLSOptions) (*tls.Config, error) {
-	if tlsOpts.isProvided() {
-		cert, err := tls.LoadX509KeyPair(tlsOpts.CertFile, tlsOpts.KeyFile)
-		if err != nil {
-			return nil, err
-		}
-		return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}, nil
-	}
-
-	cert, err := tlsprovider.GenerateSelfSigned(tlsprovider.SelfSignedOptions{DNSNames: []string{"localhost"}})
-	if err != nil {
-		return nil, err
-	}
-	return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
+	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -81,7 +82,7 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("http.listen: %w", err)
 			}
 			conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTP.Status}
-			manager.Add(httpserver.NewHTTPService(conf))
+			manager.Add(httpserver.NewService(conf))
 		}
 
 		if cfg.HTTPS.Enabled {
@@ -89,9 +90,12 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("https.listen: %w", err)
 			}
-			conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTPS.Status}
-			tlsOpts := httpserver.TLSOptions{CertFile: cfg.HTTPS.Cert, KeyFile: cfg.HTTPS.Key}
-			manager.Add(httpserver.NewHTTPSService(conf, tlsOpts))
+			conf := httpserver.Config{
+				Addr:       listen,
+				StatusCode: cfg.HTTPS.Status,
+				TLS:        &tlsprovider.Config{CertFile: cfg.HTTPS.Cert, KeyFile: cfg.HTTPS.Key},
+			}
+			manager.Add(httpserver.NewService(conf))
 		}
 
 		if cfg.SMTP.Enabled {
@@ -108,7 +112,7 @@ var rootCmd = &cobra.Command{
 				MaxRecipients:     cfg.SMTP.MaxRecipients,
 				AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
 			}
-			manager.Add(smtpserver.NewSMTPService(conf))
+			manager.Add(smtpserver.NewService(conf))
 		}
 
 		if cfg.SMTPS.Enabled {
@@ -125,8 +129,8 @@ var rootCmd = &cobra.Command{
 				MaxRecipients:     cfg.SMTPS.MaxRecipients,
 				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 			}
-			tlsOpts := smtpserver.TLSOptions{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
-			manager.Add(smtpserver.NewSMTPSService(conf, tlsOpts))
+			conf.TLS = &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
+			manager.Add(smtpserver.NewService(conf))
 		}
 
 		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled, "smtp", cfg.SMTP.Enabled, "smtps", cfg.SMTPS.Enabled)
