@@ -65,6 +65,9 @@ func (a *oauthBearerClient) Next(challenge []byte) ([]byte, error) {
 // An implementation of the OAUTHBEARER authentication mechanism, as
 // described in RFC 7628.
 func NewOAuthBearerClient(opt *OAuthBearerOptions) Client {
+	if opt == nil {
+		opt = &OAuthBearerOptions{}
+	}
 	return &oauthBearerClient{*opt}
 }
 
