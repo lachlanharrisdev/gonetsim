@@ -55,6 +55,7 @@ write_timeout = 10
 read_timeout = 10
 max_message_bytes = 1048576
 max_recipients = 50
+require_auth = false
 allow_insecure_auth = true
 
 [smtps]
@@ -65,6 +66,7 @@ write_timeout = 10
 read_timeout = 10
 max_message_bytes = 1048576
 max_recipients = 50
+require_auth = false
 allow_insecure_auth = false
 cert = ""
 key = ""

@@ -126,6 +126,7 @@ var rootCmd = &cobra.Command{
 				ReadTimeout:       cfg.SMTP.ReadTimeout,
 				MaxMessageBytes:   cfg.SMTP.MaxMessageBytes,
 				MaxRecipients:     cfg.SMTP.MaxRecipients,
+				RequireAuth:       cfg.SMTP.RequireAuth,
 				AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
 			}
 			if err := conf.Validate(); err != nil {
@@ -147,6 +148,7 @@ var rootCmd = &cobra.Command{
 				ReadTimeout:       cfg.SMTPS.ReadTimeout,
 				MaxMessageBytes:   cfg.SMTPS.MaxMessageBytes,
 				MaxRecipients:     cfg.SMTPS.MaxRecipients,
+				RequireAuth:       cfg.SMTPS.RequireAuth,
 				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 			}
 			conf.TLS = &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}

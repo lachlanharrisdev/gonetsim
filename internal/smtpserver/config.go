@@ -36,6 +36,7 @@ type Config struct {
 	ReadTimeout       int    // 10 seconds
 	MaxMessageBytes   int    // 1024 * 1024
 	MaxRecipients     int    // 50
+	RequireAuth       bool   // false
 	AllowInsecureAuth bool   // true
 
 	// TLS enables SMTPS mode when non-nil.

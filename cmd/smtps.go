@@ -39,6 +39,7 @@ var smtpsCmd = &cobra.Command{
 					ReadTimeout:       cfg.SMTPS.ReadTimeout,
 					MaxMessageBytes:   cfg.SMTPS.MaxMessageBytes,
 					MaxRecipients:     cfg.SMTPS.MaxRecipients,
+					RequireAuth:       cfg.SMTPS.RequireAuth,
 					AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 					TLS:               &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key},
 				}
