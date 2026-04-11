@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
-	smtputils "github.com/lachlanharrisdev/gonetsim/internal/smtpserver/utils"
 )
 
 type errorLogger struct {
@@ -109,15 +109,36 @@ type Session struct {
 
 // AuthMechanisms returns available authentication mechanisms.
 func (s *Session) AuthMechanisms() []string {
-	return []string{sasl.Plain, sasl.Anonymous, sasl.Login}
+	return []string{sasl.Plain, sasl.Anonymous, sasl.Login, sasl.OAuthBearer}
 }
 
 // Auth handles authentication.
 func (s *Session) Auth(mech string) (sasl.Server, error) {
+	mech = strings.ToUpper(mech)
 	switch mech {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
 			s.username = username
+			s.auth = true
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
+			return nil
+		}), nil
+	case sasl.Login:
+		return sasl.NewLoginServer(func(username, password string) error {
+			s.username = username
+			s.auth = true
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
+			return nil
+		}), nil
+	case sasl.OAuthBearer:
+		return sasl.NewOAuthBearerServer(func(opts sasl.OAuthBearerOptions) *sasl.OAuthBearerError {
+			s.username = opts.Username
 			s.auth = true
 			s.logger.Info("authentication attempt",
 				"remote_addr", s.remoteAddr,
@@ -135,27 +156,8 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 			)
 			return nil
 		}), nil
-	case sasl.Login:
-		return smtputils.NewLoginServer(func(username, password string) error {
-			s.username = username
-			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
-			return nil
-		}), nil
-	default: // default to ANONYMOUS to hopefully satisfy clients
-		s.logger.Warn("unsupported authentication mechanism; defaulting to ANONYMOUS", "remote_addr", s.remoteAddr, "mechanism", mech)
-		return sasl.NewAnonymousServer(func(trace string) error {
-			s.username = trace
-			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
-			return nil
-		}), nil
+	default:
+		return nil, fmt.Errorf("unsupported auth mechanism: %s", mech)
 	}
 }
 

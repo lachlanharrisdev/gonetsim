@@ -1,0 +1,12 @@
+SASL Package
+============
+
+This directory contains code originally from:
+https://github.com/emersion/go-sasl
+
+The code is based on commit b788ff2 (Oct 21, 2024).
+
+Modifications may have been made.
+
+All original copyright and license notices have been preserved.
+The original MIT License applies to this code (see LICENSE file in this directory).
