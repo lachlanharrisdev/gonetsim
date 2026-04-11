@@ -10,6 +10,7 @@ import (
 
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
+	smtputils "github.com/lachlanharrisdev/gonetsim/internal/smtpserver/utils"
 )
 
 type errorLogger struct {
@@ -108,21 +109,46 @@ type Session struct {
 
 // AuthMechanisms returns available authentication mechanisms.
 func (s *Session) AuthMechanisms() []string {
-	return []string{sasl.Plain}
+	return []string{sasl.Plain, sasl.Anonymous, sasl.Login}
 }
 
 // Auth handles authentication.
 func (s *Session) Auth(mech string) (sasl.Server, error) {
-	return sasl.NewPlainServer(func(identity, username, password string) error {
-		s.username = username
-		s.logger.Info("authentication attempt",
-			"remote_addr", s.remoteAddr,
-			"mechanism", mech,
-			"username", username,
-		)
-		s.auth = true
-		return nil
-	}), nil
+	switch mech {
+	case sasl.Plain:
+		return sasl.NewPlainServer(func(identity, username, password string) error {
+			s.username = username
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
+			return nil
+		}), nil
+	case sasl.Anonymous:
+		return sasl.NewAnonymousServer(func(trace string) error {
+			s.username = trace
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
+			return nil
+		}), nil
+	case sasl.Login:
+		return smtputils.NewLoginServer(func(username, password string) error {
+			s.username = username
+			return nil
+		}), nil
+	default: // default to ANONYMOUS to hopefully satisfy clients
+		s.logger.Warn("unsupported authentication mechanism: %s; defaulting to ANONYMOUS", mech)
+		return sasl.NewAnonymousServer(func(trace string) error {
+			s.username = trace
+			s.logger.Info("authentication attempt",
+				"remote_addr", s.remoteAddr,
+				"mechanism", mech,
+			)
+			return nil
+		}), nil
+	}
 }
 
 // Mail handles MAIL FROM command.
