@@ -42,9 +42,14 @@ type Config struct {
 	TLS *tlsprovider.Config
 }
 
-func (c Config) validate() error {
+func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("smtp listen addr is required")
+	}
+	if c.TLS != nil {
+		if err := c.TLS.Validate(); err != nil {
+			return err
+		}
 	}
 
 	return nil

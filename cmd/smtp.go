@@ -1,57 +1,48 @@
 package cmd
 
 import (
-	"context"
+	"fmt"
 	"log/slog"
-	"time"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
-	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
-	"github.com/lachlanharrisdev/gonetsim/internal/utils"
 	"github.com/spf13/cobra"
-)
-
-var (
-	smtpAddr              string
-	smtpDomain            string
-	smtpWriteTimeout      int
-	smtpReadTimeout       int
-	smtpMaxMessageBytes   int
-	smtpMaxRecipients     int
-	smtpAllowInsecureAuth bool
 )
 
 var smtpCmd = &cobra.Command{
 	Use:   "smtp",
 	Short: "Run an SMTP server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		listen, err := parseAddrPort(smtpAddr)
-		if err != nil {
-			return err
-		}
-
-		ctx, stop := utils.SignalContext(context.Background())
-		defer stop()
-
-		logger, err := observability.NewLogger(appconfig.Default().Logging)
-		if err != nil {
-			return err
-		}
-		slog.SetDefault(logger)
-		manager := service.NewManager(5*time.Second, logger)
-
-		return manager.RunSingleService(ctx,
-			smtpserver.NewService(smtpserver.Config{
-				Addr:              listen,
-				Domain:            smtpDomain,
-				WriteTimeout:      smtpWriteTimeout,
-				ReadTimeout:       smtpReadTimeout,
-				MaxMessageBytes:   smtpMaxMessageBytes,
-				MaxRecipients:     smtpMaxRecipients,
-				AllowInsecureAuth: smtpAllowInsecureAuth,
-			}, logger),
+		return runSingleServiceCommand(cmd,
+			[]flagOverride{
+				{flag: "listen", key: "smtp.addr", kind: overrideString},
+				{flag: "domain", key: "smtp.domain", kind: overrideString},
+				{flag: "write-timeout", key: "smtp.write_timeout", kind: overrideInt},
+				{flag: "read-timeout", key: "smtp.read_timeout", kind: overrideInt},
+				{flag: "max-message-bytes", key: "smtp.max_message_bytes", kind: overrideInt},
+				{flag: "max-recipients", key: "smtp.max_recipients", kind: overrideInt},
+				{flag: "allow-insecure-auth", key: "smtp.allow_insecure_auth", kind: overrideBool},
+			},
+			func(cfg appconfig.Config, logger *slog.Logger) (service.Service, error) {
+				listen, err := parseAddrPort(cfg.SMTP.Addr)
+				if err != nil {
+					return nil, fmt.Errorf("smtp.addr: %w", err)
+				}
+				conf := smtpserver.Config{
+					Addr:              listen,
+					Domain:            cfg.SMTP.Domain,
+					WriteTimeout:      cfg.SMTP.WriteTimeout,
+					ReadTimeout:       cfg.SMTP.ReadTimeout,
+					MaxMessageBytes:   cfg.SMTP.MaxMessageBytes,
+					MaxRecipients:     cfg.SMTP.MaxRecipients,
+					AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
+				}
+				if err := conf.Validate(); err != nil {
+					return nil, fmt.Errorf("smtp: %w", err)
+				}
+				return smtpserver.NewService(conf, logger), nil
+			},
 		)
 	},
 }
@@ -59,11 +50,11 @@ var smtpCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(smtpCmd)
 
-	smtpCmd.Flags().StringVar(&smtpAddr, "listen", ":1025", "listen address")
-	smtpCmd.Flags().StringVar(&smtpDomain, "domain", "localhost", "SMTP server domain")
-	smtpCmd.Flags().IntVar(&smtpWriteTimeout, "write-timeout", 10, "write timeout in seconds")
-	smtpCmd.Flags().IntVar(&smtpReadTimeout, "read-timeout", 10, "read timeout in seconds")
-	smtpCmd.Flags().IntVar(&smtpMaxMessageBytes, "max-message-bytes", 1024*1024, "max message size in bytes")
-	smtpCmd.Flags().IntVar(&smtpMaxRecipients, "max-recipients", 50, "maximum number of recipients per message")
-	smtpCmd.Flags().BoolVar(&smtpAllowInsecureAuth, "allow-insecure-auth", true, "allow authentication without TLS")
+	smtpCmd.Flags().String("listen", "", "listen address (overrides config smtp.addr)")
+	smtpCmd.Flags().String("domain", "", "SMTP server domain (overrides config smtp.domain)")
+	smtpCmd.Flags().Int("write-timeout", 0, "write timeout in seconds (overrides config smtp.write_timeout)")
+	smtpCmd.Flags().Int("read-timeout", 0, "read timeout in seconds (overrides config smtp.read_timeout)")
+	smtpCmd.Flags().Int("max-message-bytes", 0, "max message size in bytes (overrides config smtp.max_message_bytes)")
+	smtpCmd.Flags().Int("max-recipients", 0, "maximum recipients per message (overrides config smtp.max_recipients)")
+	smtpCmd.Flags().Bool("allow-insecure-auth", false, "allow auth without TLS (overrides config smtp.allow_insecure_auth)")
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml/v2"
+	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
@@ -149,52 +150,6 @@ func (c Config) Validate() error {
 		return errors.New("general.shutdown_timeout must be > 0")
 	}
 
-	if c.DNS.Enabled {
-		if c.DNS.Listen == "" {
-			return errors.New("dns.listen is required when dns.enabled=true")
-		}
-		if c.DNS.Network == "" {
-			return errors.New("dns.network is required when dns.enabled=true")
-		}
-		if c.DNS.IPv4 == "" {
-			return errors.New("dns.ipv4 is required when dns.enabled=true")
-		}
-	}
-
-	if c.HTTP.Enabled {
-		if c.HTTP.Listen == "" {
-			return errors.New("http.listen is required when http.enabled=true")
-		}
-	}
-
-	if c.HTTPS.Enabled {
-		if c.HTTPS.Listen == "" {
-			return errors.New("https.listen is required when https.enabled=true")
-		}
-		if (c.HTTPS.Cert == "") != (c.HTTPS.Key == "") {
-			return errors.New("https.cert and https.key must be set together")
-		}
-	}
-
-	if c.SMTP.Enabled {
-		if c.SMTP.Addr == "" {
-			return errors.New("smtp.addr is required when smtp.enabled=true")
-		}
-	}
-
-	if c.SMTPS.Enabled {
-		if c.SMTPS.Addr == "" {
-			return errors.New("smtps.addr is required when smtps.enabled=true")
-		}
-		if (c.SMTPS.Cert == "") != (c.SMTPS.Key == "") {
-			return errors.New("smtps.cert and smtps.key must be set together")
-		}
-	}
-
-	if !c.DNS.Enabled && !c.HTTP.Enabled && !c.HTTPS.Enabled && !c.SMTP.Enabled && !c.SMTPS.Enabled {
-		return errors.New("at least one service must be enabled")
-	}
-
 	// logging
 	logFormat := strings.ToLower(strings.TrimSpace(c.Logging.LogFormat))
 	switch logFormat {
@@ -222,6 +177,16 @@ type LoadResult struct {
 }
 
 func LoadOrCreate(configPath string) (LoadResult, error) {
+	return LoadOrCreateWithOverrides(configPath, nil)
+}
+
+// LoadOrCreateWithOverrides loads defaults, then the on-disk config file, then applies
+// the provided flat overrides (dot-delimited keys).
+//
+// Validation is intentionally not run here; callers should map the resulting config
+// into the isolated service configs (e.g. dnsserver.Config) and call Validate() once
+// on those structs before starting services.
+func LoadOrCreateWithOverrides(configPath string, overrides map[string]any) (LoadResult, error) {
 	resolved, created, err := resolveAndCreate(configPath)
 	if err != nil {
 		return LoadResult{}, err
@@ -234,13 +199,15 @@ func LoadOrCreate(configPath string) (LoadResult, error) {
 	if err := k.Load(file.Provider(resolved), toml.Parser()); err != nil {
 		return LoadResult{}, fmt.Errorf("load config %q: %w", resolved, err)
 	}
+	if len(overrides) > 0 {
+		if err := k.Load(confmap.Provider(overrides, "."), nil); err != nil {
+			return LoadResult{}, fmt.Errorf("load overrides: %w", err)
+		}
+	}
 
 	var out Config
 	if err := k.UnmarshalWithConf("", &out, koanf.UnmarshalConf{Tag: "koanf"}); err != nil {
 		return LoadResult{}, fmt.Errorf("unmarshal config: %w", err)
-	}
-	if err := out.Validate(); err != nil {
-		return LoadResult{}, fmt.Errorf("invalid config %q: %w", resolved, err)
 	}
 
 	return LoadResult{Config: out, Path: resolved, Created: created}, nil

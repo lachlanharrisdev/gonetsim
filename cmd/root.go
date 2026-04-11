@@ -31,6 +31,9 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		cfg := cfgRes.Config
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
 
 		logger, err := observability.NewLogger(cfg.Logging)
 		if err != nil {
@@ -49,6 +52,7 @@ var rootCmd = &cobra.Command{
 		defer cancel()
 
 		manager := service.NewManager(cfg.General.ShutdownTimeout, logger)
+		serviceCount := 0
 
 		if cfg.DNS.Enabled {
 			listen, err := parseAddrPort(cfg.DNS.Listen)
@@ -73,7 +77,11 @@ var rootCmd = &cobra.Command{
 				TTL:            cfg.DNS.TTL,
 				Compress:       cfg.DNS.Compress,
 			}
+			if err := conf.Validate(); err != nil {
+				return fmt.Errorf("dns: %w", err)
+			}
 			manager.Add(dnsserver.NewService(conf, logger))
+			serviceCount++
 		}
 
 		if cfg.HTTP.Enabled {
@@ -82,7 +90,11 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("http.listen: %w", err)
 			}
 			conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTP.Status}
+			if err := conf.Validate(); err != nil {
+				return fmt.Errorf("http: %w", err)
+			}
 			manager.Add(httpserver.NewService(conf, logger))
+			serviceCount++
 		}
 
 		if cfg.HTTPS.Enabled {
@@ -95,7 +107,11 @@ var rootCmd = &cobra.Command{
 				StatusCode: cfg.HTTPS.Status,
 				TLS:        &tlsprovider.Config{CertFile: cfg.HTTPS.Cert, KeyFile: cfg.HTTPS.Key},
 			}
+			if err := conf.Validate(); err != nil {
+				return fmt.Errorf("https: %w", err)
+			}
 			manager.Add(httpserver.NewService(conf, logger))
+			serviceCount++
 		}
 
 		if cfg.SMTP.Enabled {
@@ -112,7 +128,11 @@ var rootCmd = &cobra.Command{
 				MaxRecipients:     cfg.SMTP.MaxRecipients,
 				AllowInsecureAuth: cfg.SMTP.AllowInsecureAuth,
 			}
+			if err := conf.Validate(); err != nil {
+				return fmt.Errorf("smtp: %w", err)
+			}
 			manager.Add(smtpserver.NewService(conf, logger))
+			serviceCount++
 		}
 
 		if cfg.SMTPS.Enabled {
@@ -130,10 +150,18 @@ var rootCmd = &cobra.Command{
 				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 			}
 			conf.TLS = &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
+			if err := conf.Validate(); err != nil {
+				return fmt.Errorf("smtps: %w", err)
+			}
 			manager.Add(smtpserver.NewService(conf, logger))
+			serviceCount++
 		}
 
-		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled, "smtp", cfg.SMTP.Enabled, "smtps", cfg.SMTPS.Enabled)
+		if serviceCount == 0 {
+			return fmt.Errorf("at least one service must be enabled")
+		}
+
+		logger.Info("running", "dns", cfg.DNS.Enabled, "http", cfg.HTTP.Enabled, "https", cfg.HTTPS.Enabled, "smtp", cfg.SMTP.Enabled, "smtps", cfg.SMTPS.Enabled, "services", serviceCount)
 
 		return manager.RunAll(runCtx)
 	},

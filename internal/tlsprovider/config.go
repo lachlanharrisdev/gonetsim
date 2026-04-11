@@ -25,10 +25,6 @@ func (c Config) Validate() error {
 }
 
 func (c Config) TLSConfig() (*tls.Config, error) {
-	if err := c.Validate(); err != nil {
-		return nil, err
-	}
-
 	minVersion := c.MinVersion
 	if minVersion == 0 {
 		minVersion = tls.VersionTLS12
