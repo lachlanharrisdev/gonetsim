@@ -49,6 +49,17 @@ func TestGenerateSelfSigned_SaneCertificate(t *testing.T) {
 		t.Fatalf("expected ExtKeyUsage to include server auth, got %v", leaf.ExtKeyUsage)
 	}
 
+	if len(cert.Certificate) < 2 {
+		t.Fatalf("expected a CA certificate in the chain")
+	}
+	ca, err := x509.ParseCertificate(cert.Certificate[1])
+	if err != nil {
+		t.Fatalf("ParseCertificate (ca): %v", err)
+	}
+	if !ca.IsCA {
+		t.Fatalf("expected CA certificate")
+	}
+
 	// excluded potential checks:
 	// - leaf.Subject.CommonName != "gonetsim"
 	// - !leaf.NotAfter.After(leaf.NotBefore)

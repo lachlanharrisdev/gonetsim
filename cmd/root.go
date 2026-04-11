@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
@@ -31,6 +32,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		configDir := filepath.Dir(cfgRes.Path)
 		cfg := cfgRes.Config
 		if err := cfg.Validate(); err != nil {
 			return err
@@ -103,10 +105,17 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("https.listen: %w", err)
 			}
+
+			certPath := cfg.HTTPS.Cert
+			keyPath := cfg.HTTPS.Key
+			if certPath == "" && keyPath == "" {
+				certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
+				keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
+			}
 			conf := httpserver.Config{
 				Addr:       listen,
 				StatusCode: cfg.HTTPS.Status,
-				TLS:        &tlsprovider.Config{CertFile: cfg.HTTPS.Cert, KeyFile: cfg.HTTPS.Key},
+				TLS:        &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
 			}
 			if err := conf.Validate(); err != nil {
 				return fmt.Errorf("https: %w", err)
@@ -152,7 +161,13 @@ var rootCmd = &cobra.Command{
 				RequireAuth:       cfg.SMTPS.RequireAuth,
 				AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
 			}
-			conf.TLS = &tlsprovider.Config{CertFile: cfg.SMTPS.Cert, KeyFile: cfg.SMTPS.Key}
+			certPath := cfg.SMTPS.Cert
+			keyPath := cfg.SMTPS.Key
+			if certPath == "" && keyPath == "" {
+				certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
+				keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
+			}
+			conf.TLS = &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath}
 			if err := conf.Validate(); err != nil {
 				return fmt.Errorf("smtps: %w", err)
 			}

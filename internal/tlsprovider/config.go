@@ -2,7 +2,18 @@ package tlsprovider
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+const (
+	PersistedCertFileName = "gonetsim-cert.pem"
+	PersistedKeyFileName  = "gonetsim-key.pem"
+	PersistedCAFileName   = "gonetsim-ca.pem"
 )
 
 type Config struct {
@@ -30,24 +41,106 @@ func (c Config) TLSConfig() (*tls.Config, error) {
 		minVersion = tls.VersionTLS12
 	}
 
-	var cert tls.Certificate
-	if c.CertFile != "" {
-		loaded, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
-		if err != nil {
-			return nil, err
-		}
-		cert = loaded
-	} else {
-		opts := c.SelfSigned
-		if len(opts.DNSNames) == 0 && len(opts.IPs) == 0 {
-			opts.DNSNames = []string{"localhost"}
-		}
-		generated, err := GenerateSelfSigned(opts)
-		if err != nil {
-			return nil, err
-		}
-		cert = generated
+	cert, err := c.loadOrGenerateCert()
+	if err != nil {
+		return nil, err
 	}
 
 	return &tls.Config{MinVersion: minVersion, Certificates: []tls.Certificate{cert}}, nil
+}
+
+func (c Config) loadOrGenerateCert() (tls.Certificate, error) {
+	if c.CertFile == "" {
+		opts := defaultSelfSignedOptions(c.SelfSigned)
+		return GenerateSelfSigned(opts)
+	}
+
+	certExists := fileExists(c.CertFile)
+	keyExists := fileExists(c.KeyFile)
+	if certExists && keyExists {
+		loaded, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+		if err != nil {
+			return tls.Certificate{}, err
+		}
+		_ = ensureCAExport(caExportPath(c.CertFile), loaded)
+		return loaded, nil
+	}
+	if certExists != keyExists {
+		return tls.Certificate{}, fmt.Errorf("tls cert and key must exist together: cert=%q key=%q", c.CertFile, c.KeyFile)
+	}
+
+	// file missing on disk
+	if !isPersistedAutoPair(c.CertFile, c.KeyFile) {
+		return tls.Certificate{}, fmt.Errorf("tls cert/key not found: cert=%q key=%q", c.CertFile, c.KeyFile)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(c.CertFile), 0o755); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	opts := defaultSelfSignedOptions(c.SelfSigned)
+	certPEM, keyPEM, caPEM, err := GenerateSelfSignedWithCA(opts)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	if err := writeNewFile(c.CertFile, 0o644, certPEM); err != nil {
+		return tls.Certificate{}, err
+	}
+	if err := writeNewFile(c.KeyFile, 0o600, keyPEM); err != nil {
+		return tls.Certificate{}, err
+	}
+	_ = writeNewFile(caExportPath(c.CertFile), 0o644, caPEM)
+
+	return tls.X509KeyPair(certPEM, keyPEM)
+}
+
+func defaultSelfSignedOptions(opts SelfSignedOptions) SelfSignedOptions {
+	if len(opts.DNSNames) == 0 && len(opts.IPs) == 0 {
+		opts.DNSNames = []string{"localhost"}
+	}
+	return opts
+}
+
+func isPersistedAutoPair(certPath, keyPath string) bool {
+	return filepath.Base(certPath) == PersistedCertFileName && filepath.Base(keyPath) == PersistedKeyFileName
+}
+
+func caExportPath(certPath string) string {
+	return filepath.Join(filepath.Dir(certPath), PersistedCAFileName)
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+func writeNewFile(path string, perm os.FileMode, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil
+		}
+		return err
+	}
+	_, werr := f.Write(data)
+	cerr := f.Close()
+	if werr != nil {
+		return werr
+	}
+	return cerr
+}
+
+func ensureCAExport(caPath string, cert tls.Certificate) error {
+	if fileExists(caPath) {
+		return nil
+	}
+	if len(cert.Certificate) < 2 {
+		return nil
+	}
+	ca, err := x509.ParseCertificate(cert.Certificate[1])
+	if err != nil {
+		return err
+	}
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw})
+	return writeNewFile(caPath, 0o644, caPEM)
 }

@@ -24,7 +24,7 @@ var smtpCmd = &cobra.Command{
 				{flag: "max-recipients", key: "smtp.max_recipients", kind: overrideInt},
 				{flag: "allow-insecure-auth", key: "smtp.allow_insecure_auth", kind: overrideBool},
 			},
-			func(cfg appconfig.Config, logger *slog.Logger) (service.Service, error) {
+			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.SMTP.Addr)
 				if err != nil {
 					return nil, fmt.Errorf("smtp.addr: %w", err)
