@@ -38,9 +38,18 @@ func TestTLSConfig_AutoPersistedPair_Reused(t *testing.T) {
 		t.Fatalf("TLSConfig (second): %v", err)
 	}
 
-	cert2, _ := os.ReadFile(cfg.CertFile)
-	key2, _ := os.ReadFile(cfg.KeyFile)
-	ca2, _ := os.ReadFile(filepath.Join(dir, PersistedCAFileName))
+	cert2, err := os.ReadFile(cfg.CertFile)
+	if err != nil {
+		t.Fatalf("ReadFile(cert, second): %v", err)
+	}
+	key2, err := os.ReadFile(cfg.KeyFile)
+	if err != nil {
+		t.Fatalf("ReadFile(key, second): %v", err)
+	}
+	ca2, err := os.ReadFile(filepath.Join(dir, PersistedCAFileName))
+	if err != nil {
+		t.Fatalf("ReadFile(ca, second): %v", err)
+	}
 
 	if !bytes.Equal(cert1, cert2) {
 		t.Fatalf("expected cert to be reused")

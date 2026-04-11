@@ -36,6 +36,10 @@ func (c Config) Validate() error {
 }
 
 func (c Config) TLSConfig() (*tls.Config, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+
 	minVersion := c.MinVersion
 	if minVersion == 0 {
 		minVersion = tls.VersionTLS12
@@ -62,7 +66,11 @@ func (c Config) loadOrGenerateCert() (tls.Certificate, error) {
 		if err != nil {
 			return tls.Certificate{}, err
 		}
-		_ = ensureCAExport(caExportPath(c.CertFile), loaded)
+		if isPersistedAutoPair(c.CertFile, c.KeyFile) {
+			if err := ensureCAExport(caExportPath(c.CertFile), loaded); err != nil {
+				return tls.Certificate{}, err
+			}
+		}
 		return loaded, nil
 	}
 	if certExists != keyExists {
@@ -89,7 +97,9 @@ func (c Config) loadOrGenerateCert() (tls.Certificate, error) {
 	if err := writeNewFile(c.KeyFile, 0o600, keyPEM); err != nil {
 		return tls.Certificate{}, err
 	}
-	_ = writeNewFile(caExportPath(c.CertFile), 0o644, caPEM)
+	if err := writeNewFile(caExportPath(c.CertFile), 0o644, caPEM); err != nil {
+		return tls.Certificate{}, err
+	}
 
 	return tls.X509KeyPair(certPEM, keyPEM)
 }
@@ -122,12 +132,21 @@ func writeNewFile(path string, perm os.FileMode, data []byte) error {
 		}
 		return err
 	}
-	_, werr := f.Write(data)
-	cerr := f.Close()
-	if werr != nil {
-		return werr
+
+	writeErr := func(err error) error {
+		_ = f.Close()
+		_ = os.Remove(path)
+		return err
 	}
-	return cerr
+
+	if _, err := f.Write(data); err != nil {
+		return writeErr(err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	return nil
 }
 
 func ensureCAExport(caPath string, cert tls.Certificate) error {

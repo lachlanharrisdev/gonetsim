@@ -12,39 +12,34 @@ RUN go mod download
 
 COPY . ./
 
-ARG TARGETOS
-ARG TARGETARCH
-
 ARG VERSION=dev
 ARG REVISION=dev
 ARG BUILD_DATE=unknown
 
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+RUN CGO_ENABLED=0 \
     go build -trimpath \
       -ldflags "-s -w -X github.com/lachlanharrisdev/gonetsim/cmd.Version=${VERSION} -X github.com/lachlanharrisdev/gonetsim/cmd.Revision=${REVISION} -X github.com/lachlanharrisdev/gonetsim/cmd.Date=${BUILD_DATE}" \
       -o /out/gonetsim \
       .
 
 
-FROM debian:bookworm-slim AS certgen
+FROM alpine:3.22
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates su-exec && update-ca-certificates
 
-RUN mkdir -p /etc/gonetsim
-COPY --from=builder /src/internal/config/default_config.toml /etc/gonetsim/gonetsim.toml
-COPY --from=builder /out/gonetsim /gonetsim
-RUN /gonetsim tls --config /etc/gonetsim/gonetsim.toml
-
-RUN cp /etc/gonetsim/gonetsim-ca.pem /usr/local/share/ca-certificates/gonetsim-ca.crt && update-ca-certificates
-
-
-FROM gcr.io/distroless/static-debian12:nonroot
+RUN addgroup -S gonetsim \
+  && adduser -S -G gonetsim -h /home/gonetsim -s /sbin/nologin gonetsim \
+  && mkdir -p /etc/gonetsim /work /usr/local/share/ca-certificates \
+  && chown -R gonetsim:gonetsim /etc/gonetsim /work
 
 # prefers /etc/gonetsim/gonetsim.toml if present
-# includes a default config and a persisted TLS cert/key/CA so the container is runnable with no mounts
-COPY --from=certgen /etc/gonetsim/ /etc/gonetsim/
-COPY --from=certgen /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# including default config keeps the container runnable with no mounts
+COPY --from=builder --chown=gonetsim:gonetsim /src/internal/config/default_config.toml /etc/gonetsim/gonetsim.toml
+
 COPY --from=builder /out/gonetsim /gonetsim
+COPY docker/entrypoint.sh /entrypoint.sh
+
+RUN chmod 0755 /gonetsim /entrypoint.sh
 
 WORKDIR /work
 
@@ -55,4 +50,4 @@ EXPOSE 8443/tcp
 EXPOSE 1025/tcp
 EXPOSE 1465/tcp
 
-ENTRYPOINT ["/gonetsim"]
+ENTRYPOINT ["/entrypoint.sh"]
