@@ -25,10 +25,6 @@ func (l errorLogger) Println(v ...interface{}) {
 }
 
 func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
-	if err := conf.validate(); err != nil {
-		return nil, err
-	}
-
 	backend := &Backend{logger: logger}
 
 	// Use smtp.NewServer to ensure internal fields like 'done' channel are initialized

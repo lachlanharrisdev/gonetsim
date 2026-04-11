@@ -11,9 +11,6 @@ import (
 )
 
 func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Server, error) {
-	if err := conf.validate(); err != nil {
-		return nil, err
-	}
 	if handler == nil {
 		handler = FakeHandler{StatusCode: conf.StatusCode, Logger: logger}
 	}

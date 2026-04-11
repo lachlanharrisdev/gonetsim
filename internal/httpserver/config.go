@@ -14,10 +14,10 @@ func (s *Server) Name() string {
 }
 
 type Server struct {
-	name    string
-	conf    Config
-	srv     *http.Server
-	log     *slog.Logger
+	name string
+	conf Config
+	srv  *http.Server
+	log  *slog.Logger
 }
 
 func NewService(conf Config, logger *slog.Logger) service.Service {
@@ -39,9 +39,14 @@ type Config struct {
 	StatusCode int
 }
 
-func (c Config) validate() error {
+func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("http listen addr is required")
+	}
+	if c.TLS != nil {
+		if err := c.TLS.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

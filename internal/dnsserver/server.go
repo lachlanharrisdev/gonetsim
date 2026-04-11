@@ -11,10 +11,6 @@ import (
 )
 
 func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
-	if err := conf.validate(); err != nil {
-		return nil, err
-	}
-
 	h := &handler{
 		logger:         logger,
 		sinkholeIPv4:   conf.SinkholeIPv4,

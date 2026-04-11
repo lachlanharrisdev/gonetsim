@@ -36,7 +36,7 @@ type Config struct {
 	Compress       bool
 }
 
-func (c Config) validate() error {
+func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("dns listen addr is required")
 	}
