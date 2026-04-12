@@ -104,6 +104,8 @@ func (h *handler) handle(w dns.ResponseWriter, r *dns.Msg) {
 			appendRecord(logger, m, q, h.ttl, "SRV", "10 0 0 "+h.sinkholeDomain)
 		case dns.TypePTR:
 			appendRecord(logger, m, q, h.ttl, "PTR", h.sinkholeDomain)
+		case dns.TypeSOA:
+			appendRecord(logger, m, q, h.ttl, "SOA", fmt.Sprintf("%s. hostmaster.%s. 1 3600 600 604800 3600", h.sinkholeDomain, h.sinkholeDomain))
 		default:
 			// ret NOERROR with empty Answer for other types
 		}

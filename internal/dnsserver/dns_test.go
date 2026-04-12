@@ -201,6 +201,26 @@ func TestPTRQuery(t *testing.T) {
 	}
 }
 
+func TestSOAQuery(t *testing.T) {
+	client, addr, _, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "example.com.", dns.TypeSOA)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	soa, ok := response.Answer[0].(*dns.SOA)
+	if !ok {
+		t.Fatalf("expected *dns.SOA, got %T", response.Answer[0])
+	}
+	if got := soa.Ns; got != "localhost." {
+		t.Fatalf("expected localhost., got %s", got)
+	}
+	if got := soa.Mbox; got != "hostmaster.localhost." {
+		t.Fatalf("expected hostmaster.localhost., got %s", got)
+	}
+}
+
 func exchange(t *testing.T, client *dns.Client, addr, name string, qtype uint16) *dns.Msg {
 	t.Helper()
 
