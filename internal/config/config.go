@@ -67,7 +67,7 @@ type HTTPSConfig struct {
 
 type SMTPConfig struct {
 	Enabled           bool   `koanf:"enabled"`
-	Addr              string `koanf:"addr"`                // ":1025"
+	Addr              string `koanf:"addr"`                // ":25"
 	Domain            string `koanf:"domain"`              // "localhost"
 	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
@@ -79,7 +79,7 @@ type SMTPConfig struct {
 
 type SMTPSConfig struct {
 	Enabled           bool   `koanf:"enabled"`
-	Addr              string `koanf:"addr"`                // ":1465"
+	Addr              string `koanf:"addr"`                // ":465"
 	Domain            string `koanf:"domain"`              // "localhost"
 	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
@@ -101,7 +101,7 @@ func Default() Config {
 		General: GeneralConfig{ShutdownTimeout: 2 * time.Second},
 		DNS: DNSConfig{
 			Enabled:  true,
-			Listen:   ":5353",
+			Listen:   ":53",
 			Network:  "udp",
 			IPv4:     "127.0.0.1",
 			IPv6:     "::1",
@@ -112,17 +112,17 @@ func Default() Config {
 		},
 		HTTP: HTTPConfig{
 			Enabled: true,
-			Listen:  ":8080",
+			Listen:  ":80",
 			Status:  200,
 		},
 		HTTPS: HTTPSConfig{
 			Enabled: true,
-			Listen:  ":8443",
+			Listen:  ":443",
 			Status:  200,
 		},
 		SMTP: SMTPConfig{
 			Enabled:           true,
-			Addr:              ":1025",
+			Addr:              ":25",
 			Domain:            "localhost",
 			WriteTimeout:      10,
 			ReadTimeout:       10,
@@ -133,7 +133,7 @@ func Default() Config {
 		},
 		SMTPS: SMTPSConfig{
 			Enabled:           true,
-			Addr:              ":1465",
+			Addr:              ":465",
 			Domain:            "localhost",
 			WriteTimeout:      10,
 			ReadTimeout:       10,

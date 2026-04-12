@@ -20,7 +20,7 @@ shutdown_timeout = "2s"
 
 [dns]
 enabled = true
-listen = ":5353"
+listen = ":53"
 network = "udp"
 # Sinkhole IP for A responses.
 ipv4 = "127.0.0.1"
@@ -37,19 +37,19 @@ compress = false
 
 [http]
 enabled = true
-listen = ":8080"
+listen = ":80"
 # Status code to return for all requests. 0 means default (200).
 status = 200
 
 [https]
 enabled = true
-listen = ":8443"
+listen = ":443"
 # Status code to return for all requests. 0 means default (200).
 status = 200
 
 [smtp]
 enabled = true
-addr = ":1025"
+addr = ":25"
 domain = "localhost"
 write_timeout = 10
 read_timeout = 10
@@ -60,7 +60,7 @@ allow_insecure_auth = true
 
 [smtps]
 enabled = true
-addr = ":1465"
+addr = ":465"
 domain = "localhost"
 write_timeout = 10
 read_timeout = 10
