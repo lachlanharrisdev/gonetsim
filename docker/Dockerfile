@@ -43,11 +43,11 @@ RUN chmod 0755 /gonetsim /entrypoint.sh
 
 WORKDIR /work
 
-EXPOSE 5353/udp
-EXPOSE 5353/tcp
-EXPOSE 8080/tcp
-EXPOSE 8443/tcp
-EXPOSE 1025/tcp
-EXPOSE 1465/tcp
+EXPOSE 53/udp
+EXPOSE 53/tcp
+EXPOSE 80/tcp
+EXPOSE 443/tcp
+EXPOSE 25/tcp
+EXPOSE 465/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -6,18 +6,20 @@ services:
 
     # publish the default non-privileged ports
     # to publish standard ports on the host instead, swap to:
-    #  - "53:5353/udp"
-    #  - "53:5353/tcp"
-    #  - "80:8080"
-    #  - "443:8443"
+    #  - "53:53/udp"
+    #  - "53:53/tcp"
+    #  - "80:80"
+    #  - "443:443"
+    #  - "25:25"
+    #  - "465:465"
     # note that updating the configuration file won't change the affected host ports, unlike the standalone binary
     ports:
-      - "5353:5353/udp"
-      - "5353:5353/tcp"
-      - "8080:8080"
-      - "8443:8443"
-      - "1025:1025"
-      - "1465:1465"
+      - "5353:53/udp"
+      - "5353:53/tcp"
+      - "8080:80"
+      - "8443:443"
+      - "1025:25"
+      - "1465:465"
 
     # by default the image includes a config at /etc/gonetsim/gonetsim.toml.
     # to use a custom config, mount a read-only file over it:
