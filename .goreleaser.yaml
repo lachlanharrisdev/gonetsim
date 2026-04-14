@@ -17,7 +17,8 @@ before:
     - go generate ./...
 
 builds:
-  - main: .
+  - id: gonetsim
+    main: .
     env:
       - CGO_ENABLED=0
     goos:
@@ -98,3 +99,19 @@ release:
         - [Documentation](https://gonetsim.lachlanharris.dev/)
         - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)
         - [Discussions](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/discussions)
+
+kos:
+  - id: gonetsim
+    build: gonetsim
+    repositories:
+      - ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/gonetsim
+    tags:
+      - "{{ .Version }}"
+      - "{{ .Major }}.{{ .Minor }}"
+      - latest
+    bare: true
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    base_image: gcr.io/distroless/base-debian12
+    user: "0:0"

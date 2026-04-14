@@ -60,6 +60,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install Go
+        id: setup-go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download Go modules
+        shell: bash
+        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
+        run: go mod download
+
+      - name: Install ko
+        run: go install github.com/google/ko@v0.18.1
+
       - name: Set build metadata
         id: meta
         shell: bash
@@ -75,26 +89,19 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build container image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          file: docker/Dockerfile
-          push: false
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/gonetsim:main
-            ghcr.io/${{ github.repository_owner }}/gonetsim:latest
-            ghcr.io/${{ github.repository_owner }}/gonetsim:sha-${{ github.sha }}
-          build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-            REVISION=${{ github.sha }}
-            BUILD_DATE=${{ steps.meta.outputs.build_date }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build container image (ko)
+        env:
+          KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gonetsim
+          VERSION: ${{ steps.meta.outputs.version }}
+          REVISION: ${{ github.sha }}
+          BUILD_DATE: ${{ steps.meta.outputs.build_date }}
+        shell: bash
+        run: |
+          ko build \
+            --bare \
+            --platform=linux/amd64,linux/arm64 \
+            --push=false \
+            --image-user=0:0 \
+            --tags=main,latest,sha-${GITHUB_SHA} \
+            --ldflags="-s -w -X github.com/lachlanharrisdev/gonetsim/cmd.Version=${VERSION} -X github.com/lachlanharrisdev/gonetsim/cmd.Revision=${REVISION} -X github.com/lachlanharrisdev/gonetsim/cmd.Date=${BUILD_DATE}" \
+            .

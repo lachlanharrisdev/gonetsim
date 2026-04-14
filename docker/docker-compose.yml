@@ -1,8 +1,12 @@
 services:
   gonetsim:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    # Build the image locally with ko, then run it with compose:
+    #   go install github.com/google/ko@v0.18.1
+    #   cd ..
+    #   KO_DOCKER_REPO=gonetsim ko build --local --bare --tags=dev .
+    #
+    # Or use a published image instead (e.g. ghcr.io/<owner>/gonetsim:latest).
+    image: gonetsim:dev
 
     # publish the default non-privileged ports
     # to publish standard ports on the host instead, swap to:
@@ -21,7 +25,7 @@ services:
       - "1025:25"
       - "1465:465"
 
-    # by default the image includes a config at /etc/gonetsim/gonetsim.toml.
-    # to use a custom config, mount a read-only file over it:
+    # By default GoNetSim will generate a config file on first start.
+    # If you want to pin the config to /etc/gonetsim/gonetsim.toml, mount it there:
     # volumes:
     #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
