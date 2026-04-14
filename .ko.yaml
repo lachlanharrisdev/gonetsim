@@ -1,0 +1,20 @@
+defaultBaseImage: gcr.io/distroless/base-debian12
+
+defaultPlatforms:
+  - linux/amd64
+  - linux/arm64
+
+builds:
+  - id: gonetsim
+    dir: .
+    main: .
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Version={{.Env.VERSION}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Revision={{.Env.REVISION}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.BuildDate={{.Env.BUILD_DATE}}

@@ -25,6 +25,22 @@ jobs:
         if: steps.check.outputs.has-new-commits == 'true'
         uses: actions/checkout@v6
 
+      - name: Install Go
+        if: steps.check.outputs.has-new-commits == 'true'
+        id: setup-go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download Go modules
+        if: ${{ steps.check.outputs.has-new-commits == 'true' && steps.setup-go.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: go mod download
+
+      - name: Install ko
+        if: steps.check.outputs.has-new-commits == 'true'
+        run: go install github.com/google/ko@v0.18.1
+
       - name: Set build metadata
         if: steps.check.outputs.has-new-commits == 'true'
         id: meta
@@ -35,14 +51,6 @@ jobs:
           echo "version=nightly-${date}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        if: steps.check.outputs.has-new-commits == 'true'
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        if: steps.check.outputs.has-new-commits == 'true'
-        uses: docker/setup-buildx-action@v4
-
       - name: Log in to GHCR
         if: steps.check.outputs.has-new-commits == 'true'
         uses: docker/login-action@v4
@@ -51,29 +59,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
+      - name: Build and push image (ko)
         if: steps.check.outputs.has-new-commits == 'true'
-        id: docker_meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/gonetsim
-          tags: |
-            type=raw,value=nightly
-            type=raw,value=nightly-${{ steps.meta.outputs.date }}
-
-      - name: Build and push image
-        if: steps.check.outputs.has-new-commits == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          file: docker/Dockerfile
-          push: true
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-            REVISION=${{ github.sha }}
-            BUILD_DATE=${{ steps.meta.outputs.build_date }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gonetsim
+          VERSION: ${{ steps.meta.outputs.version }}
+          REVISION: ${{ github.sha }}
+          BUILD_DATE: ${{ steps.meta.outputs.build_date }}
+        shell: bash
+        run: |
+          ko build \
+            --bare \
+            --platform=linux/amd64,linux/arm64 \
+            --image-user=0:0 \
+            --tags=nightly,nightly-${{ steps.meta.outputs.date }} \
+            .
