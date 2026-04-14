@@ -15,3 +15,6 @@ builds:
     ldflags:
       - -s
       - -w
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Version={{.Env.VERSION}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.Revision={{.Env.REVISION}}
+      - -X github.com/lachlanharrisdev/gonetsim/cmd.BuildDate={{.Env.BUILD_DATE}}

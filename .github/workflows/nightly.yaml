@@ -73,5 +73,4 @@ jobs:
             --platform=linux/amd64,linux/arm64 \
             --image-user=0:0 \
             --tags=nightly,nightly-${{ steps.meta.outputs.date }} \
-            --ldflags="-s -w -X github.com/lachlanharrisdev/gonetsim/cmd.Version=${VERSION} -X github.com/lachlanharrisdev/gonetsim/cmd.Revision=${REVISION} -X github.com/lachlanharrisdev/gonetsim/cmd.Date=${BUILD_DATE}" \
             .
