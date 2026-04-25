@@ -51,11 +51,7 @@ jobs:
       - name: go build
         run: go build
       - name: go test
-        run: go test -v ./... -race -coverprofile=coverage.txt
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+        run: go test -v ./... -race
 
   container:
     name: container-build
