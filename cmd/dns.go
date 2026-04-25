@@ -58,7 +58,7 @@ func init() {
 	rootCmd.AddCommand(dnsCmd)
 
 	dnsCmd.Flags().String("listen", "", "listen address (overrides config dns.listen)")
-	dnsCmd.Flags().String("network", "", "network: udp or tcp (overrides config dns.network)")
+	dnsCmd.Flags().String("network", "", "network: udp, tcp, or both (overrides config dns.network)")
 	dnsCmd.Flags().String("ipv4", "", "sinkhole IPv4 for A responses (overrides config dns.ipv4)")
 	dnsCmd.Flags().String("ipv6", "", "optional sinkhole IPv6 for AAAA responses (overrides config dns.ipv6)")
 }

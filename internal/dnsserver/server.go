@@ -10,7 +10,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
+func NewServers(conf Config, logger *slog.Logger) ([]*dns.Server, error) {
 	h := &handler{
 		logger:         logger,
 		sinkholeIPv4:   conf.SinkholeIPv4,
@@ -25,35 +25,81 @@ func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
 	mux := dns.NewServeMux()
 	mux.HandleFunc(".", h.handle)
 
-	srv := &dns.Server{
-		Addr:    conf.Addr,
-		Net:     conf.Net,
-		Handler: mux,
+	network := strings.ToLower(strings.TrimSpace(conf.Net))
+	switch network {
+	case "udp", "tcp":
+		return []*dns.Server{{Addr: conf.Addr, Net: network, Handler: mux}}, nil
+	case "both":
+		return []*dns.Server{
+			{Addr: conf.Addr, Net: "udp", Handler: mux},
+			{Addr: conf.Addr, Net: "tcp", Handler: mux},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported dns network %q (must be udp, tcp, or both)", conf.Net)
 	}
-	return srv, nil
+}
+
+func NewServer(conf Config, logger *slog.Logger) (*dns.Server, error) {
+	srvs, err := NewServers(conf, logger)
+	if err != nil {
+		return nil, err
+	}
+	if len(srvs) != 1 {
+		return nil, fmt.Errorf("expected 1 dns server, got %d", len(srvs))
+	}
+	return srvs[0], nil
 }
 
 func (s *Server) Start(ctx context.Context) error {
 	logger := s.log
 
-	srv, err := NewServer(s.conf, logger)
+	srvs, err := NewServers(s.conf, logger)
 	if err != nil {
 		return err
 	}
-	s.srv = srv
+	s.srvs = srvs
 
-	logger.Info("listening", "on", s.conf.Addr, "net", s.conf.Net, "sinkhole", sinkholeSummary(s.conf))
-	if err := srv.ListenAndServe(); err != nil {
-		return err
+	netLabel := strings.ToLower(strings.TrimSpace(s.conf.Net))
+	if netLabel == "both" {
+		netLabel = "udp+tcp"
 	}
-	return nil
+
+	logger.Info("listening", "on", s.conf.Addr, "net", netLabel, "sinkhole", sinkholeSummary(s.conf))
+
+	errCh := make(chan error, len(srvs))
+	for _, srv := range srvs {
+		srv := srv
+		go func() {
+			errCh <- srv.ListenAndServe()
+		}()
+	}
+
+	var retErr error
+	for i := 0; i < len(srvs); i++ {
+		err := <-errCh
+		if err != nil && retErr == nil {
+			retErr = err
+			for _, srv := range srvs {
+				_ = srv.Shutdown()
+			}
+		}
+	}
+	return retErr
 }
 
 func (s *Server) Stop(ctx context.Context) error {
-	if s.srv == nil {
+	if len(s.srvs) == 0 {
 		return nil
 	}
-	return s.srv.ShutdownContext(ctx)
+
+	var firstErr error
+	for _, srv := range s.srvs {
+		if err := srv.ShutdownContext(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	s.srvs = nil
+	return firstErr
 }
 
 func sinkholeSummary(conf Config) string {

@@ -21,6 +21,7 @@ shutdown_timeout = "2s"
 [dns]
 enabled = true
 listen = ":53"
+# protocol(s) to listen on; "udp", "tcp" or "both"
 network = "udp"
 # Sinkhole IP for A responses.
 ipv4 = "127.0.0.1"

@@ -62,6 +62,83 @@ func queryTestsHelper(t *testing.T) (client *dns.Client, addr string, config Con
 	return client, addr, conf, teardown
 }
 
+func queryBothTransportsHelper(t *testing.T) (udpClient *dns.Client, tcpClient *dns.Client, addr string, config Config, teardown func()) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	pc, err := net.ListenPacket("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		_ = ln.Close()
+		t.Fatalf("ListenPacket: %v", err)
+	}
+
+	addr = fmt.Sprintf("127.0.0.1:%d", port)
+
+	conf := Config{
+		Addr:           addr,
+		Net:            "both",
+		SinkholeIPv4:   netip.MustParseAddr("203.0.113.10"),
+		SinkholeIPv6:   netip.MustParseAddr("2001:db8::10"),
+		SinkholeDomain: "localhost",
+		SinkholeTXT:    "test",
+		TTL:            60,
+		Compress:       false,
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	srvs, err := NewServers(conf, logger)
+	if err != nil {
+		_ = pc.Close()
+		_ = ln.Close()
+		t.Fatalf("NewServers: %v", err)
+	}
+	for _, srv := range srvs {
+		switch srv.Net {
+		case "udp":
+			srv.PacketConn = pc
+		case "tcp":
+			srv.Listener = ln
+		default:
+			_ = pc.Close()
+			_ = ln.Close()
+			t.Fatalf("unexpected server net: %q", srv.Net)
+		}
+	}
+
+	errCh := make(chan error, len(srvs))
+	for _, srv := range srvs {
+		srv := srv
+		go func() {
+			errCh <- srv.ActivateAndServe()
+		}()
+	}
+
+	teardown = func() {
+		for _, srv := range srvs {
+			if err := srv.Shutdown(); err != nil {
+				t.Fatalf("Shutdown: %v", err)
+			}
+		}
+		_ = pc.Close()
+		_ = ln.Close()
+
+		for i := 0; i < len(srvs); i++ {
+			select {
+			case <-errCh:
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}
+
+	udpClient = &dns.Client{Net: "udp", Timeout: 1 * time.Second}
+	tcpClient = &dns.Client{Net: "tcp", Timeout: 1 * time.Second}
+
+	return udpClient, tcpClient, addr, conf, teardown
+}
+
 func TestAQuery(t *testing.T) {
 	client, addr, config, teardown := queryTestsHelper(t)
 	defer teardown()
@@ -239,6 +316,31 @@ func TestCAAQuery(t *testing.T) {
 	if got := caa.Tag; got != "issue" {
 		t.Fatalf("expected tag issue, got %s", got)
 	}
+}
+
+func TestQueryOverUDPAndTCP(t *testing.T) {
+	udpClient, tcpClient, addr, config, teardown := queryBothTransportsHelper(t)
+	defer teardown()
+
+	assertA := func(resp *dns.Msg) {
+		t.Helper()
+		if len(resp.Answer) != 1 {
+			t.Fatalf("expected 1 answer, got %d", len(resp.Answer))
+		}
+		a, ok := resp.Answer[0].(*dns.A)
+		if !ok {
+			t.Fatalf("expected *dns.A, got %T", resp.Answer[0])
+		}
+		if got := a.A.String(); got != config.SinkholeIPv4.String() {
+			t.Fatalf("expected %s, got %s", config.SinkholeIPv4.String(), got)
+		}
+	}
+
+	respUDP := exchange(t, udpClient, addr, "example.com.", dns.TypeA)
+	respTCP := exchange(t, tcpClient, addr, "example.com.", dns.TypeA)
+
+	assertA(respUDP)
+	assertA(respTCP)
 }
 
 func exchange(t *testing.T, client *dns.Client, addr, name string, qtype uint16) *dns.Msg {
