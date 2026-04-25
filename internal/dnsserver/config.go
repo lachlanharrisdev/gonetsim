@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/netip"
+	"strings"
 
 	"github.com/miekg/dns"
 
@@ -16,7 +17,7 @@ func (s *Server) Name() string {
 
 type Server struct {
 	conf Config
-	srv  *dns.Server
+	srvs []*dns.Server
 	log  *slog.Logger
 }
 
@@ -42,6 +43,13 @@ func (c Config) Validate() error {
 	}
 	if c.Net == "" {
 		return errors.New("dns network is required")
+	}
+	net := strings.ToLower(strings.TrimSpace(c.Net))
+	switch net {
+	case "udp", "tcp", "both":
+		// all good my boy
+	default:
+		return errors.New("dns network must be one of: udp, tcp, both")
 	}
 	if !c.SinkholeIPv4.IsValid() {
 		return errors.New("dns sinkhole ipv4 is required")
