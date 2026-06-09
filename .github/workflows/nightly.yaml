@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Check for new commits in the last 24h
         id: check
-        uses: adriangl/check-new-commits-action@v1
+        uses: adriangl/check-new-commits-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           seconds: 86400 # 24 hours
