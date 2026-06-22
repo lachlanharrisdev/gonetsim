@@ -23,7 +23,7 @@ jobs:
 
       - name: Checkout code
         if: steps.check.outputs.has-new-commits == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Go
         if: steps.check.outputs.has-new-commits == 'true'
