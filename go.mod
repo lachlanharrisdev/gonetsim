@@ -13,7 +13,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.5
 	github.com/lmittmann/tint v1.1.3
 	github.com/mattn/go-colorable v0.1.15
-	github.com/mattn/go-isatty v0.0.23
+	github.com/mattn/go-isatty v0.0.24
 	github.com/miekg/dns v1.1.72
 	github.com/spf13/cobra v1.10.2
 )
