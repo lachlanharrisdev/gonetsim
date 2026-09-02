@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log/slog"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
@@ -22,18 +21,9 @@ var httpCmd = &cobra.Command{
 				{flag: "root-dir", key: "http.root_dir", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
-				listen, err := parseAddrPort(cfg.HTTP.Listen)
+				conf, err := httpConfig(cfg.HTTP)
 				if err != nil {
-					return nil, fmt.Errorf("http.listen: %w", err)
-				}
-				conf := httpserver.Config{
-					Addr:       listen,
-					StatusCode: cfg.HTTP.Status,
-					Mode:       cfg.HTTP.Mode,
-					RootDir:    cfg.HTTP.RootDir,
-				}
-				if err := conf.Validate(); err != nil {
-					return nil, fmt.Errorf("http: %w", err)
+					return nil, err
 				}
 				return httpserver.NewService(conf, logger), nil
 			},

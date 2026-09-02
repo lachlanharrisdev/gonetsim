@@ -3,6 +3,7 @@ package smtpserver
 import (
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/emersion/go-smtp"
 
@@ -38,6 +39,7 @@ type Config struct {
 	MaxRecipients     int    // 50
 	RequireAuth       bool   // false
 	AllowInsecureAuth bool   // true
+	LogCredentials    bool   // false
 
 	// TLS enables SMTPS mode when non-nil.
 	TLS *tlsprovider.Config
@@ -45,7 +47,22 @@ type Config struct {
 
 func (c Config) Validate() error {
 	if c.Addr == "" {
-		return errors.New("smtp listen addr is required")
+		return errors.New("listen addr is required")
+	}
+	if strings.TrimSpace(c.Domain) == "" {
+		return errors.New("domain is required")
+	}
+	if c.WriteTimeout < 0 {
+		return errors.New("write_timeout must be >= 0")
+	}
+	if c.ReadTimeout < 0 {
+		return errors.New("read_timeout must be >= 0")
+	}
+	if c.MaxMessageBytes < 0 {
+		return errors.New("max_message_bytes must be >= 0")
+	}
+	if c.MaxRecipients < 0 {
+		return errors.New("max_recipients must be >= 0")
 	}
 	if c.TLS != nil {
 		if err := c.TLS.Validate(); err != nil {

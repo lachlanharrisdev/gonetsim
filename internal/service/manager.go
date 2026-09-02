@@ -60,6 +60,7 @@ func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.
 
 	running := len(services)
 	exited := make(map[Service]bool)
+	var firstErr error
 
 	for running > 0 {
 		select {
@@ -71,11 +72,23 @@ func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.
 		case ex := <-exitCh:
 			running--
 			exited[ex.svc] = true
+			if ex.err == nil || errors.Is(ex.err, context.Canceled) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s: %w", ex.svc.Name(), ex.err)
+			}
+			// a service failed; stop the rest so the manager doesn't block
+			// waiting on services that can never come up
+			cancel()
+			stopRemaining(logger, shutdownTimeout, services, exited)
+			wg.Wait()
+			return firstErr
 		}
 	}
 
 	wg.Wait()
-	return nil
+	return firstErr
 }
 
 func stopRemaining(logger *slog.Logger, shutdownTimeout time.Duration, services []Service, exited map[Service]bool) {

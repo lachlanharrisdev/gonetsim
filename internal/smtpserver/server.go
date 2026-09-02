@@ -26,7 +26,7 @@ func (l errorLogger) Println(v ...interface{}) {
 }
 
 func NewServer(conf Config, logger *slog.Logger) (*smtp.Server, error) {
-	backend := &Backend{logger: logger, requireAuth: conf.RequireAuth}
+	backend := &Backend{logger: logger, requireAuth: conf.RequireAuth, logCredentials: conf.LogCredentials}
 
 	// Use smtp.NewServer to ensure internal fields like 'done' channel are initialized
 	srv := smtp.NewServer(backend)
@@ -85,26 +85,29 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // Backend implements SMTP server methods.
 type Backend struct {
-	logger      *slog.Logger
-	requireAuth bool
+	logger         *slog.Logger
+	requireAuth    bool
+	logCredentials bool
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	remoteAddr := c.Conn().RemoteAddr().String()
 	bkd.logger.Info("session started", "remote_addr", remoteAddr)
-	return &Session{logger: bkd.logger, remoteAddr: remoteAddr, requireAuth: bkd.requireAuth}, nil
+	return &Session{logger: bkd.logger, remoteAddr: remoteAddr, requireAuth: bkd.requireAuth, logCredentials: bkd.logCredentials}, nil
 }
 
 // Session represents an SMTP session.
 type Session struct {
-	logger      *slog.Logger
-	remoteAddr  string
-	requireAuth bool
-	auth        bool
-	username    string
-	from        string
-	recipients  []string
+	logger         *slog.Logger
+	remoteAddr     string
+	requireAuth    bool
+	logCredentials bool
+	auth           bool
+	username       string
+	password       string
+	from           string
+	recipients     []string
 }
 
 // AuthMechanisms returns available authentication mechanisms.
@@ -119,46 +122,48 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
 			s.username = username
+			s.password = password
 			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
+			s.logAuthAttempt(mech)
 			return nil
 		}), nil
 	case sasl.Login:
 		return sasl.NewLoginServer(func(username, password string) error {
 			s.username = username
+			s.password = password
 			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
+			s.logAuthAttempt(mech)
 			return nil
 		}), nil
 	case sasl.OAuthBearer:
 		return sasl.NewOAuthBearerServer(func(opts sasl.OAuthBearerOptions) *sasl.OAuthBearerError {
 			s.username = opts.Username
 			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
+			s.logAuthAttempt(mech)
 			return nil
 		}), nil
 	case sasl.Anonymous:
 		return sasl.NewAnonymousServer(func(trace string) error {
 			s.username = trace
 			s.auth = true
-			s.logger.Info("authentication attempt",
-				"remote_addr", s.remoteAddr,
-				"mechanism", mech,
-			)
+			s.logAuthAttempt(mech)
 			return nil
 		}), nil
 	default:
 		return nil, fmt.Errorf("unsupported auth mechanism: %s", mech)
 	}
+}
+
+func (s *Session) logAuthAttempt(mech string) {
+	attrs := []any{
+		"remote_addr", s.remoteAddr,
+		"mechanism", mech,
+		"username", s.username,
+	}
+	if s.logCredentials && s.password != "" {
+		attrs = append(attrs, "password", s.password)
+	}
+	s.logger.Info("authentication attempt", attrs...)
 }
 
 // Mail handles MAIL FROM command.

@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 )
 
 var tlsVerifyOnly bool
+var tlsForce bool
 
 var tlsCmd = &cobra.Command{
 	Use:   "tls",
@@ -30,10 +32,16 @@ var tlsCmd = &cobra.Command{
 		keyPath := filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
 		caPath := filepath.Join(configDir, tlsprovider.PersistedCAFileName)
 
+		conf := &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath}
+
+		if tlsForce {
+			if err := conf.Regenerate(); err != nil {
+				return err
+			}
+		}
+
 		if !tlsVerifyOnly {
-			// Generates the persisted auto pair if missing.
-			_, err := (&tlsprovider.Config{CertFile: certPath, KeyFile: keyPath}).TLSConfig()
-			if err != nil {
+			if _, err := conf.TLSConfig(); err != nil {
 				return err
 			}
 		}
@@ -42,7 +50,12 @@ var tlsCmd = &cobra.Command{
 			return err
 		}
 
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TLS OK\ncert: %s\nkey:  %s\nca:   %s\n", certPath, keyPath, caPath); err != nil {
+		expIRY, err := certExpiry(certPath)
+		if err != nil {
+			return err
+		}
+
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TLS OK\ncert:   %s\nkey:    %s\nca:     %s\nexpiry: %s\n", certPath, keyPath, caPath, expIRY.Format(time.RFC3339)); err != nil {
 			return err
 		}
 		return nil
@@ -52,6 +65,24 @@ var tlsCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tlsCmd)
 	tlsCmd.Flags().BoolVar(&tlsVerifyOnly, "verify-only", false, "verify existing files without generating")
+	tlsCmd.Flags().BoolVar(&tlsForce, "force", false, "regenerate the persisted certificate pair even if it already exists")
+}
+
+// certExpiry returns the NotAfter time of the leaf certificate at certPath
+func certExpiry(certPath string) (time.Time, error) {
+	raw, err := os.ReadFile(certPath)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read cert %q: %w", certPath, err)
+	}
+	block, _ := pem.Decode(raw)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return time.Time{}, fmt.Errorf("no CERTIFICATE block in %q", certPath)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse leaf in %q: %w", certPath, err)
+	}
+	return leaf.NotAfter, nil
 }
 
 func verifyKeyPair(certPath, keyPath, caPath string) error {

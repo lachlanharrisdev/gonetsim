@@ -62,7 +62,10 @@ func (c Config) normalize() Config {
 
 func (c Config) Validate() error {
 	if c.Addr == "" {
-		return errors.New("http: listen addr is required")
+		return errors.New("listen addr is required")
+	}
+	if c.StatusCode != 0 && (c.StatusCode < 100 || c.StatusCode > 599) {
+		return fmt.Errorf("status code must be 0 or between 100 and 599, was %d", c.StatusCode)
 	}
 	if c.TLS != nil {
 		if err := c.TLS.Validate(); err != nil {
@@ -74,13 +77,13 @@ func (c Config) Validate() error {
 		// ok
 	case "real":
 		if c.RootDir == "" {
-			return fmt.Errorf("http: real mode requires root_dir to be set")
+			return errors.New("real mode requires root_dir to be set")
 		}
 		if _, err := os.Stat(c.RootDir); os.IsNotExist(err) {
-			return fmt.Errorf("http: root_dir %q does not exist", c.RootDir)
+			return fmt.Errorf("root_dir %q does not exist", c.RootDir)
 		}
 	default:
-		return fmt.Errorf("http: mode can only be 'fake' or 'real', was %q", c.Mode)
+		return fmt.Errorf("mode can only be 'fake' or 'real', was %q", c.Mode)
 	}
 	return nil
 }

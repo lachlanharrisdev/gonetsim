@@ -1,14 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"log/slog"
-	"path/filepath"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/spf13/cobra"
 )
 
@@ -25,34 +22,14 @@ var smtpsCmd = &cobra.Command{
 				{flag: "max-message-bytes", key: "smtps.max_message_bytes", kind: overrideInt},
 				{flag: "max-recipients", key: "smtps.max_recipients", kind: overrideInt},
 				{flag: "allow-insecure-auth", key: "smtps.allow_insecure_auth", kind: overrideBool},
+				{flag: "log-credentials", key: "smtps.log_credentials", kind: overrideBool},
 				{flag: "cert", key: "smtps.cert", kind: overrideString},
 				{flag: "key", key: "smtps.key", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
-				listen, err := parseAddrPort(cfg.SMTPS.Addr)
+				conf, err := smtpsConfig(cfg.SMTPS, configDir)
 				if err != nil {
-					return nil, fmt.Errorf("smtps.addr: %w", err)
-				}
-
-				certPath := cfg.SMTPS.Cert
-				keyPath := cfg.SMTPS.Key
-				if certPath == "" && keyPath == "" {
-					certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
-					keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
-				}
-				conf := smtpserver.Config{
-					Addr:              listen,
-					Domain:            cfg.SMTPS.Domain,
-					WriteTimeout:      cfg.SMTPS.WriteTimeout,
-					ReadTimeout:       cfg.SMTPS.ReadTimeout,
-					MaxMessageBytes:   cfg.SMTPS.MaxMessageBytes,
-					MaxRecipients:     cfg.SMTPS.MaxRecipients,
-					RequireAuth:       cfg.SMTPS.RequireAuth,
-					AllowInsecureAuth: cfg.SMTPS.AllowInsecureAuth,
-					TLS:               &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
-				}
-				if err := conf.Validate(); err != nil {
-					return nil, fmt.Errorf("smtps: %w", err)
+					return nil, err
 				}
 				return smtpserver.NewService(conf, logger), nil
 			},
@@ -70,6 +47,7 @@ func init() {
 	smtpsCmd.Flags().Int("max-message-bytes", 0, "max message size in bytes (overrides config smtps.max_message_bytes)")
 	smtpsCmd.Flags().Int("max-recipients", 0, "maximum recipients per message (overrides config smtps.max_recipients)")
 	smtpsCmd.Flags().Bool("allow-insecure-auth", false, "allow auth without TLS (overrides config smtps.allow_insecure_auth)")
+	smtpsCmd.Flags().Bool("log-credentials", false, "log plaintext passwords on auth (overrides config smtps.log_credentials)")
 	smtpsCmd.Flags().String("cert", "", "path to TLS cert PEM (overrides config smtps.cert)")
 	smtpsCmd.Flags().String("key", "", "path to TLS key PEM (overrides config smtps.key)")
 }

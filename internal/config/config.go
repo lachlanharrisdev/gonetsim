@@ -78,6 +78,7 @@ type SMTPConfig struct {
 	MaxRecipients     int    `koanf:"max_recipients"`      // 50
 	RequireAuth       bool   `koanf:"require_auth"`        // false
 	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // true
+	LogCredentials    bool   `koanf:"log_credentials"`     // false
 }
 
 type SMTPSConfig struct {
@@ -90,6 +91,7 @@ type SMTPSConfig struct {
 	MaxRecipients     int    `koanf:"max_recipients"`      // 50
 	RequireAuth       bool   `koanf:"require_auth"`        // false
 	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // false (secure)
+	LogCredentials    bool   `koanf:"log_credentials"`     // false
 	Cert              string `koanf:"cert"`                // Optional TLS cert
 	Key               string `koanf:"key"`                 // Optional TLS key
 }
