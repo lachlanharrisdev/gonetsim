@@ -123,3 +123,45 @@ func TestTLSConfig_AutoPersistedPair_Reused(t *testing.T) {
 		t.Fatalf("expected CA to be reused")
 	}
 }
+
+func TestTLSConfig_RegenerateForce(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg := Config{
+		CertFile: filepath.Join(dir, PersistedCertFileName),
+		KeyFile:  filepath.Join(dir, PersistedKeyFileName),
+	}
+
+	if _, err := cfg.TLSConfig(); err != nil {
+		t.Fatalf("TLSConfig (initial): %v", err)
+	}
+	before, err := os.ReadFile(cfg.CertFile)
+	if err != nil {
+		t.Fatalf("ReadFile(cert): %v", err)
+	}
+
+	if err := cfg.Regenerate(); err != nil {
+		t.Fatalf("Regenerate: %v", err)
+	}
+	if _, err := cfg.TLSConfig(); err != nil {
+		t.Fatalf("TLSConfig (after regenerate): %v", err)
+	}
+	after, err := os.ReadFile(cfg.CertFile)
+	if err != nil {
+		t.Fatalf("ReadFile(cert, after): %v", err)
+	}
+
+	if bytes.Equal(before, after) {
+		t.Fatalf("expected cert to be regenerated, but it is identical")
+	}
+}
+
+func TestCertExpired(t *testing.T) {
+	cert, err := GenerateSelfSigned(SelfSignedOptions{})
+	if err != nil {
+		t.Fatalf("GenerateSelfSigned: %v", err)
+	}
+	if certExpired(cert) {
+		t.Fatalf("freshly generated cert must not be expired")
+	}
+}

@@ -1,14 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"log/slog"
-	"path/filepath"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/spf13/cobra"
 )
 
@@ -26,27 +23,9 @@ var httpsCmd = &cobra.Command{
 				{flag: "root-dir", key: "https.root_dir", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
-				listen, err := parseAddrPort(cfg.HTTPS.Listen)
+				conf, err := httpsConfig(cfg.HTTPS, configDir)
 				if err != nil {
-					return nil, fmt.Errorf("https.listen: %w", err)
-				}
-
-				certPath := cfg.HTTPS.Cert
-				keyPath := cfg.HTTPS.Key
-				if certPath == "" && keyPath == "" {
-					certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
-					keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
-				}
-
-				conf := httpserver.Config{
-					Addr:       listen,
-					StatusCode: cfg.HTTPS.Status,
-					Mode:       cfg.HTTPS.Mode,
-					RootDir:    cfg.HTTPS.RootDir,
-					TLS:        &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
-				}
-				if err := conf.Validate(); err != nil {
-					return nil, fmt.Errorf("https: %w", err)
+					return nil, err
 				}
 				return httpserver.NewService(conf, logger), nil
 			},

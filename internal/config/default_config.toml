@@ -5,12 +5,12 @@
 #
 # You can place it in one of the following locations, in order of precedence:
 #   Linux:
-#     - /etc/gonetsim/gonetsim.toml
+#     - ./gonetsim.toml
 #     - $XDG_CONFIG_HOME/gonetsim/config.toml (usually ~/.config/gonetsim/config.toml)
-#     - ./gonetsim.toml
+#     - /etc/gonetsim/gonetsim.toml
 #   Windows:
-#     - %APPDATA%\gonetsim\config.toml
 #     - ./gonetsim.toml
+#     - %APPDATA%\gonetsim\config.toml
 # Or specify an explicit path with:
 #   gonetsim --config /path/to/gonetsim.toml
 
@@ -42,9 +42,9 @@ listen = ":80"
 # Status code to return for all requests. 0 means default (200).
 status = 200
 # fake mode serves a fake file for any request; real mode serves files from the
-# directory specified in root_dir
+# directory specified in root_dir (required when mode = "real")
 mode = "fake"
-root_dir = "."
+root_dir = ""
 
 [https]
 enabled = true
@@ -52,9 +52,9 @@ listen = ":443"
 # Status code to return for all requests. 0 means default (200).
 status = 200
 # fake mode serves a fake file for any request; real mode serves files from the
-# directory specified in root_dir
+# directory specified in root_dir (required when mode = "real")
 mode = "fake"
-root_dir = "."
+root_dir = ""
 
 [smtp]
 enabled = true
@@ -66,6 +66,8 @@ max_message_bytes = 1048576
 max_recipients = 50
 require_auth = false
 allow_insecure_auth = true
+# Log plaintext passwords on successful authentication (warning: security risk)
+log_credentials = false
 
 [smtps]
 enabled = true
@@ -77,6 +79,8 @@ max_message_bytes = 1048576
 max_recipients = 50
 require_auth = false
 allow_insecure_auth = false
+# Log plaintext passwords on successful authentication (warning: security risk)
+log_credentials = false
 cert = ""
 key = ""
 

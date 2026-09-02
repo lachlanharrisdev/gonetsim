@@ -28,6 +28,7 @@ func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Se
 		Addr:              conf.Addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	return srv, nil
 }

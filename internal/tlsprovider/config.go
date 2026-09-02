@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -67,6 +68,12 @@ func (c Config) loadOrGenerateCert() (tls.Certificate, error) {
 			return tls.Certificate{}, err
 		}
 		if isPersistedAutoPair(c.CertFile, c.KeyFile) {
+			if certExpired(loaded) {
+				if err := c.regeneratePersistedPair(); err != nil {
+					return tls.Certificate{}, err
+				}
+				return tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+			}
 			if err := ensureCAExport(caExportPath(c.CertFile), loaded); err != nil {
 				return tls.Certificate{}, err
 			}
@@ -102,6 +109,34 @@ func (c Config) loadOrGenerateCert() (tls.Certificate, error) {
 	}
 
 	return tls.X509KeyPair(certPEM, keyPEM)
+}
+
+func (c Config) Regenerate() error {
+	return c.regeneratePersistedPair()
+}
+
+func (c Config) regeneratePersistedPair() error {
+	if !isPersistedAutoPair(c.CertFile, c.KeyFile) {
+		return nil
+	}
+	for _, p := range []string{c.CertFile, c.KeyFile, caExportPath(c.CertFile)} {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// certExpired reports whether the leaf certificate has passed its NotAfter time
+func certExpired(cert tls.Certificate) bool {
+	if len(cert.Certificate) == 0 {
+		return false
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return false
+	}
+	return time.Now().After(leaf.NotAfter)
 }
 
 func defaultSelfSignedOptions(opts SelfSignedOptions) SelfSignedOptions {

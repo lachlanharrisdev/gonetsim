@@ -64,9 +64,9 @@ On first run, if no config file is found, GoNetSim generates a default commented
 
 Default search locations:
 
-- `/etc/gonetsim/gonetsim.toml`
-- `$XDG_CONFIG_HOME/gonetsim/config.toml` (usually `~/.config/gonetsim/config.toml`)
 - `./gonetsim.toml`
+- `$XDG_CONFIG_HOME/gonetsim/config.toml` (usually `~/.config/gonetsim/config.toml`)
+- `/etc/gonetsim/gonetsim.toml`
 
 To use a specific config file:
 

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log/slog"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
@@ -22,31 +21,9 @@ var dnsCmd = &cobra.Command{
 				{flag: "ipv6", key: "dns.ipv6", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
-				listen, err := parseAddrPort(cfg.DNS.Listen)
+				conf, err := dnsConfig(cfg.DNS)
 				if err != nil {
-					return nil, fmt.Errorf("dns.listen: %w", err)
-				}
-				ipv4, err := parseNetipAddr(cfg.DNS.IPv4)
-				if err != nil {
-					return nil, fmt.Errorf("dns.ipv4: %w", err)
-				}
-				ipv6, err := parseOptionalNetipAddr(cfg.DNS.IPv6)
-				if err != nil {
-					return nil, fmt.Errorf("dns.ipv6: %w", err)
-				}
-
-				conf := dnsserver.Config{
-					Addr:           listen,
-					Net:            cfg.DNS.Network,
-					SinkholeIPv4:   ipv4,
-					SinkholeIPv6:   ipv6,
-					SinkholeDomain: cfg.DNS.Domain,
-					SinkholeTXT:    cfg.DNS.TXT,
-					TTL:            cfg.DNS.TTL,
-					Compress:       cfg.DNS.Compress,
-				}
-				if err := conf.Validate(); err != nil {
-					return nil, fmt.Errorf("dns: %w", err)
+					return nil, err
 				}
 				return dnsserver.NewService(conf, logger), nil
 			},
