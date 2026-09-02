@@ -22,7 +22,7 @@ func NewLogger(cfg config.LoggingConfig) (*slog.Logger, error) {
 	w := os.Stderr
 	noColor := !isatty.IsTerminal(w.Fd())
 
-	return slog.New(tint.NewHandler(colorable.NewColorable(w), &tint.Options{
+	return slog.New(tint.NewTextHandler(colorable.NewColorable(w), &tint.Options{
 		Level:      level,
 		TimeFormat: time.TimeOnly,
 		NoColor:    noColor,
