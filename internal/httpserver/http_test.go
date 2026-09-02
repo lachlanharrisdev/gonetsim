@@ -242,7 +242,7 @@ func TestRealHandler_ServesHTMLFile(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/index.html")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -263,7 +263,7 @@ func TestRealHandler_ServesTextFile(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/readme.txt")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -297,7 +297,7 @@ func TestRealHandler_ServesBinaryFile(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/pixel.png")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -318,7 +318,7 @@ func TestRealHandler_ServesFileFromSubdirectory(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/assets/style.css")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -336,7 +336,7 @@ func TestRealHandler_RootPathServesIndexHTML(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	// / should fall through to index.html
 	if resp.StatusCode != http.StatusOK {
@@ -355,7 +355,7 @@ func TestRealHandler_StatusCodeOverride(t *testing.T) {
 	_, base := startRealServer(t, dir, http.StatusCreated)
 
 	resp := mustGet(t, http.DefaultClient, base+"/page.html")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("expected %d, got %d", http.StatusCreated, resp.StatusCode)
@@ -369,7 +369,7 @@ func TestRealHandler_MissingFileReturns404(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/nonexistent.html")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
@@ -385,7 +385,7 @@ func TestRealHandler_DirectoryRequestWithoutIndexReturns404(t *testing.T) {
 	// Request the subdirectory itself — without an index.html it should 404,
 	// not serve a listing.
 	resp := mustGet(t, http.DefaultClient, base+"/sub/")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 for directory request, got %d", resp.StatusCode)
@@ -399,7 +399,7 @@ func TestRealHandler_DirectoryServesIndexHTML(t *testing.T) {
 	_, base := startRealServer(t, dir, 0)
 
 	resp := mustGet(t, http.DefaultClient, base+"/sub/")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -435,7 +435,7 @@ func TestRealHandler_ConditionalRequestNotOverridden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusNotModified {
 		t.Fatalf("expected 304 for conditional request, got %d", resp.StatusCode)
@@ -462,7 +462,7 @@ func TestRealHandler_DirectoryTraversalBlocked(t *testing.T) {
 
 	// Classic traversal attempt
 	resp := mustGet(t, http.DefaultClient, base+"/../secret.txt")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	// Must not serve the file — 404 or 400 are both acceptable
 	if resp.StatusCode == http.StatusOK {
@@ -488,7 +488,7 @@ func TestRealHandler_EncodedTraversalBlocked(t *testing.T) {
 	// URL-encoded traversal: %2e%2e = ".."
 	// http.DefaultClient will usually normalise this, but worth having
 	resp := mustGet(t, http.DefaultClient, base+"/%2e%2e/secret.txt")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -512,7 +512,7 @@ func TestRealHandler_MiddlePathTraversalBlocked(t *testing.T) {
 
 	// .. in the middle of the path must still be contained within root.
 	resp := mustGet(t, http.DefaultClient, base+"/a/../secret.txt")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -536,7 +536,7 @@ func TestRealHandler_PlainTraversalPath(t *testing.T) {
 
 	// Raw .. components that survive URL parsing.
 	resp := mustGet(t, http.DefaultClient, base+"/../../secret.txt")
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
