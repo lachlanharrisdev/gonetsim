@@ -13,7 +13,6 @@ import (
 	"github.com/knadh/koanf/parsers/toml/v2"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
 )
 
@@ -55,12 +54,16 @@ type HTTPConfig struct {
 	Enabled bool   `koanf:"enabled"`
 	Listen  string `koanf:"listen"`
 	Status  int    `koanf:"status"`
+	Mode    string `koanf:"mode"`
+	RootDir string `koanf:"root_dir"`
 }
 
 type HTTPSConfig struct {
 	Enabled bool   `koanf:"enabled"`
 	Listen  string `koanf:"listen"`
 	Status  int    `koanf:"status"`
+	Mode    string `koanf:"mode"`
+	RootDir string `koanf:"root_dir"`
 	Cert    string `koanf:"cert"`
 	Key     string `koanf:"key"`
 }
@@ -114,11 +117,13 @@ func Default() Config {
 			Enabled: true,
 			Listen:  ":80",
 			Status:  200,
+			Mode:    "fake",
 		},
 		HTTPS: HTTPSConfig{
 			Enabled: true,
 			Listen:  ":443",
 			Status:  200,
+			Mode:    "fake",
 		},
 		SMTP: SMTPConfig{
 			Enabled:           true,
@@ -197,19 +202,18 @@ func LoadOrCreateWithOverrides(configPath string, overrides map[string]any) (Loa
 	}
 
 	k := koanf.New(".")
-	if err := k.Load(structs.Provider(Default(), "koanf"), nil); err != nil {
-		return LoadResult{}, fmt.Errorf("load defaults: %w", err)
-	}
+
 	if err := k.Load(file.Provider(resolved), toml.Parser()); err != nil {
 		return LoadResult{}, fmt.Errorf("load config %q: %w", resolved, err)
 	}
+
 	if len(overrides) > 0 {
 		if err := k.Load(confmap.Provider(overrides, "."), nil); err != nil {
 			return LoadResult{}, fmt.Errorf("load overrides: %w", err)
 		}
 	}
 
-	var out Config
+	out := Default()
 	if err := k.UnmarshalWithConf("", &out, koanf.UnmarshalConf{Tag: "koanf"}); err != nil {
 		return LoadResult{}, fmt.Errorf("unmarshal config: %w", err)
 	}
@@ -235,21 +239,21 @@ func resolveAndCreate(configPath string) (string, bool, error) {
 func defaultSearchPaths() []string {
 	paths := make([]string, 0, 3)
 
-	// in order of precedence from lowest-highest
+	// in order of precedence
+
+	// local config `./gonetsim.toml`
+	paths = append(paths, localConfigPath)
+
+	// user config `~/.config/gonetsim/config.toml`
+	if d, err := os.UserConfigDir(); err == nil && d != "" {
+		paths = append(paths, filepath.Join(d, "gonetsim", "config.toml"))
+	}
 
 	// system config `/etc/gonetsim/gonetsim.toml` (unix only)
 	if runtime.GOOS != "windows" {
 		paths = append(paths, systemConfigPath)
 	}
 
-	// user config `~/.config/gonetsim/config.toml` on unix
-	// `%APPDATA%\gonetsim\config.toml` on win
-	if d, err := os.UserConfigDir(); err == nil && d != "" {
-		paths = append(paths, filepath.Join(d, "gonetsim", "config.toml"))
-	}
-
-	// local config `./gonetsim.toml`
-	paths = append(paths, localConfigPath)
 	return paths
 }
 

@@ -41,12 +41,20 @@ enabled = true
 listen = ":80"
 # Status code to return for all requests. 0 means default (200).
 status = 200
+# fake mode serves a fake file for any request; real mode serves files from the
+# directory specified in root_dir
+mode = "fake"
+root_dir = "."
 
 [https]
 enabled = true
 listen = ":443"
 # Status code to return for all requests. 0 means default (200).
 status = 200
+# fake mode serves a fake file for any request; real mode serves files from the
+# directory specified in root_dir
+mode = "fake"
+root_dir = "."
 
 [smtp]
 enabled = true
@@ -73,7 +81,7 @@ cert = ""
 key = ""
 
 [logging]
-# Log output format: "text" (fixed-width columns) or "json".
+# Log output format: "text" or "json".
 format = "text"
 # Minimum log level: "debug", "info", "warn", "error".
 level = "info"

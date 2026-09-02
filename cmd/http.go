@@ -18,13 +18,20 @@ var httpCmd = &cobra.Command{
 			[]flagOverride{
 				{flag: "listen", key: "http.listen", kind: overrideString},
 				{flag: "status", key: "http.status", kind: overrideInt},
+				{flag: "mode", key: "http.mode", kind: overrideString},
+				{flag: "root-dir", key: "http.root_dir", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.HTTP.Listen)
 				if err != nil {
 					return nil, fmt.Errorf("http.listen: %w", err)
 				}
-				conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTP.Status}
+				conf := httpserver.Config{
+					Addr:       listen,
+					StatusCode: cfg.HTTP.Status,
+					Mode:       cfg.HTTP.Mode,
+					RootDir:    cfg.HTTP.RootDir,
+				}
 				if err := conf.Validate(); err != nil {
 					return nil, fmt.Errorf("http: %w", err)
 				}
@@ -39,4 +46,6 @@ func init() {
 
 	httpCmd.Flags().String("listen", "", "listen address (overrides config http.listen)")
 	httpCmd.Flags().Int("status", 0, "status code to return for all requests (overrides config http.status)")
+	httpCmd.Flags().String("mode", "", "serve mode: fake or real (overrides config http.mode)")
+	httpCmd.Flags().String("root-dir", "", "directory to serve files from in real mode (overrides config http.root_dir)")
 }

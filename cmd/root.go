@@ -92,7 +92,12 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("http.listen: %w", err)
 			}
-			conf := httpserver.Config{Addr: listen, StatusCode: cfg.HTTP.Status}
+			conf := httpserver.Config{
+				Addr:       listen,
+				StatusCode: cfg.HTTP.Status,
+				Mode:       cfg.HTTP.Mode,
+				RootDir:    cfg.HTTP.RootDir,
+			}
 			if err := conf.Validate(); err != nil {
 				return fmt.Errorf("http: %w", err)
 			}
@@ -115,6 +120,8 @@ var rootCmd = &cobra.Command{
 			conf := httpserver.Config{
 				Addr:       listen,
 				StatusCode: cfg.HTTPS.Status,
+				Mode:       cfg.HTTPS.Mode,
+				RootDir:    cfg.HTTPS.RootDir,
 				TLS:        &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
 			}
 			if err := conf.Validate(); err != nil {

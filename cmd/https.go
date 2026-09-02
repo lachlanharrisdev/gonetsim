@@ -22,6 +22,8 @@ var httpsCmd = &cobra.Command{
 				{flag: "status", key: "https.status", kind: overrideInt},
 				{flag: "cert", key: "https.cert", kind: overrideString},
 				{flag: "key", key: "https.key", kind: overrideString},
+				{flag: "mode", key: "https.mode", kind: overrideString},
+				{flag: "root-dir", key: "https.root_dir", kind: overrideString},
 			},
 			func(cfg appconfig.Config, configDir string, logger *slog.Logger) (service.Service, error) {
 				listen, err := parseAddrPort(cfg.HTTPS.Listen)
@@ -39,6 +41,8 @@ var httpsCmd = &cobra.Command{
 				conf := httpserver.Config{
 					Addr:       listen,
 					StatusCode: cfg.HTTPS.Status,
+					Mode:       cfg.HTTPS.Mode,
+					RootDir:    cfg.HTTPS.RootDir,
 					TLS:        &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
 				}
 				if err := conf.Validate(); err != nil {
@@ -57,4 +61,6 @@ func init() {
 	httpsCmd.Flags().Int("status", 0, "status code to return for all requests (overrides config https.status)")
 	httpsCmd.Flags().String("cert", "", "path to TLS cert PEM (overrides config https.cert)")
 	httpsCmd.Flags().String("key", "", "path to TLS key PEM (overrides config https.key)")
+	httpsCmd.Flags().String("mode", "", "serve mode: fake or real (overrides config https.mode)")
+	httpsCmd.Flags().String("root-dir", "", "directory to serve files from in real mode (overrides config https.root_dir)")
 }

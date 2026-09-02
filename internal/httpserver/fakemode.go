@@ -50,6 +50,10 @@ type fakeResponse struct {
 
 type fakeGenerator func(r *http.Request, m fakeMeta) fakeResponse
 
+// statusOverrideWriter forces a configured status code, but only for ordinary
+// 200 OK responses. It deliberately leaves partial content (206) and
+// not-modified (304) responses untouched so conditional/range requests still
+// behave correctly in real mode.
 type statusOverrideWriter struct {
 	http.ResponseWriter
 	status      int
@@ -61,7 +65,7 @@ func (w *statusOverrideWriter) WriteHeader(code int) {
 		return
 	}
 	w.wroteHeader = true
-	if w.status != 0 {
+	if w.status != 0 && code == http.StatusOK {
 		w.ResponseWriter.WriteHeader(w.status)
 		return
 	}

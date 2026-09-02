@@ -11,8 +11,17 @@ import (
 )
 
 func NewServer(conf Config, handler http.Handler, logger *slog.Logger) (*http.Server, error) {
+	if err := conf.Validate(); err != nil {
+		return nil, err
+	}
+	conf = conf.normalize()
+
 	if handler == nil {
-		handler = FakeHandler{StatusCode: conf.StatusCode, Logger: logger}
+		if conf.Mode == "real" {
+			handler = RealHandler{StatusCode: conf.StatusCode, RootDir: conf.RootDir, Logger: logger}
+		} else {
+			handler = FakeHandler{StatusCode: conf.StatusCode, Logger: logger}
+		}
 	}
 
 	srv := &http.Server{
@@ -47,7 +56,7 @@ func (s *Server) Start(ctx context.Context) error {
 		ln = tls.NewListener(ln, tlsConf)
 	}
 
-	logger.Info("listening", "on", s.conf.Addr)
+	logger.Info("listening", "on", s.conf.Addr, "mode", s.conf.Mode)
 	if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
