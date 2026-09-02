@@ -95,7 +95,7 @@ func (h RealHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	cap := &statusCaptureWriter{ResponseWriter: w}
 	out := http.ResponseWriter(cap)
