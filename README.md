@@ -88,7 +88,7 @@ For a full reference guide please see the [Docker guide](https://gonetsim.lachla
 
 ## Contributing
 
-GoNetSim follows most standard conventions for contributing, and accepts any contributions from documentation improvements, bug triage / fixes, small features or any updates for [issues in the backlog](https://github.com/lachlanharrisdev/gonetsim/issues?q=is%3Aissue). For more information on contributing please see [CONTRIBUTING.md](https://github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md).
+GoNetSim follows most standard conventions for contributing, and accepts any contributions from documentation improvements, bug triage / fixes, small features or any updates for [issues in the backlog](https://github.com/lachlanharrisdev/gonetsim/issues?q=is%3Aissue). For more information on contributing please see [CONTRIBUTING.md](https://github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md) and [AI_USAGE.md](github.com/lachlanharrisdev/gonetsim/blob/main/.github/AI_USAGE.md)
 
 ### Codespaces
 

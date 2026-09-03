@@ -14,7 +14,7 @@
 <!-- Note that these can be checked or unchecked after PR creation, should you complete these steps later -->
 <br/>
 
-> - [ ] I have read [CONTRIBUTING.md](github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md)
+> - [ ] I have read [CONTRIBUTING.md](github.com/lachlanharrisdev/gonetsim/blob/main/.github/CONTRIBUTING.md) and the [AI Usage Policy](github.com/lachlanharrisdev/gonetsim/blob/main/.github/AI_USAGE.md)
 > - [ ] The project builds and runs successfully (i.e. `go run .`)
 > - [ ] Tests pass locally on my machine (i.e. `go test ./...`)
 >   - [ ] Relevant tests have been updated / created

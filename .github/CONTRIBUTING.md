@@ -13,6 +13,8 @@ We especially want new contributors to focus on exisiting issues that have been 
 
 GoNetSim fills a very specific role, and as such many new features may either be unnecessary or need to be made in the right way to exist in the way it does. As such, it may be common for feature requests to be denied. If your request is denied, its most likely because it doesn't fully align with GoNetSim's vision.
 
+GoNetSim also has a strict AI usage policy. For more information please see [AI_USAGE.md](github.com/lachlanharrisdev/gonetsim/blob/main/.github/AI_USAGE.md)
+
 Additionally, GoNetSim places strong emphasis on code quality and efficiency. If PRs or contributions are expected to be made exclusively with automated tooling or seem to have little care put into them, they may be denied. 
 
 # Ground Rules
