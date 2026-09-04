@@ -38,3 +38,6 @@ dist/
 # build files
 gonetsim
 bin/
+
+# listener capture output
+artifacts/

@@ -23,8 +23,9 @@ enabled = true
 listen = ":53"
 # protocol(s) to listen on; "udp", "tcp" or "both"
 network = "udp"
-# Sinkhole IP for A responses.
-ipv4 = "127.0.0.1"
+# Sinkhole IP for A responses. "auto" detects this machine's IPv4 address
+# (falling back to 127.0.0.1), or set an explicit IP.
+ipv4 = "auto"
 # Optional sinkhole IP for AAAA responses. Set empty string to disable.
 ipv6 = "::1"
 # Sinkhole domain for CNAME, MX & PTR responses
@@ -58,7 +59,7 @@ root_dir = ""
 
 [smtp]
 enabled = true
-addr = ":25"
+listen = ":25"
 domain = "localhost"
 write_timeout = 10
 read_timeout = 10
@@ -71,7 +72,7 @@ log_credentials = false
 
 [smtps]
 enabled = true
-addr = ":465"
+listen = ":465"
 domain = "localhost"
 write_timeout = 10
 read_timeout = 10
@@ -89,3 +90,32 @@ key = ""
 format = "text"
 # Minimum log level: "debug", "info", "warn", "error".
 level = "info"
+
+# Custom listeners
+#
+# Generic TCP/UDP listeners for anything the services above don't cover.
+# Run all enabled listeners with `gonetsim`, or a single one with
+# `gonetsim run <name>`. Listeners can also be started inline, without any
+# configuration, e.g. `gonetsim run echo@:7777` or `gonetsim run c2.lua@:8080`.
+#
+# Available handlers:
+#   builtin:echo  - echo all received data back to the client
+#   builtin:sink  - consume and discard all received data
+#   lua:<path>    - serve with a Lua script (path relative to this config file)
+#
+# [[listeners]]
+# name = "irc"
+# enabled = true
+# # protocol; "tcp" (default) or "udp"
+# type = "tcp"
+# listen = ":6667"
+# handler = "lua:handlers/irc.lua"
+# # Idle timeout applied to reads and writes on each connection.
+# read_timeout = "30s"
+# # Wrap the listener in TLS (tcp only). With cert/key empty, a self-signed
+# # certificate is generated next to this config file.
+# tls = false
+# tls_cert = ""
+# tls_key = ""
+# # Write everything a client sends to the artifacts directory.
+# capture = true

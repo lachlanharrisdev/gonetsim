@@ -139,6 +139,30 @@ func queryBothTransportsHelper(t *testing.T) (udpClient *dns.Client, tcpClient *
 	return udpClient, tcpClient, addr, conf, teardown
 }
 
+func TestAutoSinkholeIPv4(t *testing.T) {
+	addr := AutoSinkholeIPv4()
+	if !addr.IsValid() || !addr.Is4() {
+		t.Fatalf("expected a valid IPv4 address, got %v", addr)
+	}
+}
+
+func TestWildcardDomain(t *testing.T) {
+	client, addr, config, teardown := queryTestsHelper(t)
+	defer teardown()
+
+	response := exchange(t, client, addr, "random-beacon-9f3a.malware.example.", dns.TypeA)
+	if len(response.Answer) != 1 {
+		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+	}
+	a, ok := response.Answer[0].(*dns.A)
+	if !ok {
+		t.Fatalf("expected *dns.A, got %T", response.Answer[0])
+	}
+	if got := a.A.String(); got != config.SinkholeIPv4.String() {
+		t.Fatalf("expected %s, got %s", config.SinkholeIPv4.String(), got)
+	}
+}
+
 func TestAQuery(t *testing.T) {
 	client, addr, config, teardown := queryTestsHelper(t)
 	defer teardown()

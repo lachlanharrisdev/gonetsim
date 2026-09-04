@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
+	"github.com/lachlanharrisdev/gonetsim/internal/handler"
 	"github.com/spf13/cobra"
 )
 
@@ -85,7 +86,7 @@ var checkCmd = &cobra.Command{
 					_, err := smtpConfig(cfg.SMTP)
 					return err
 				},
-				binds: []bindTarget{{net: "tcp", addr: cfg.SMTP.Addr}},
+				binds: []bindTarget{{net: "tcp", addr: effectiveListen(cfg.SMTP.Listen, cfg.SMTP.Addr)}},
 			},
 			{
 				name:    "smtps",
@@ -94,33 +95,72 @@ var checkCmd = &cobra.Command{
 					_, err := smtpsConfig(cfg.SMTPS, configDir)
 					return err
 				},
-				binds: []bindTarget{{net: "tcp", addr: cfg.SMTPS.Addr}},
+				binds: []bindTarget{{net: "tcp", addr: effectiveListen(cfg.SMTPS.Listen, cfg.SMTPS.Addr)}},
 			},
 		}
 
 		var failures []string
 		for _, c := range checks {
 			if !c.enabled {
-				if err := write("%-5s %-8s disabled\n", c.name, ""); err != nil {
+				if err := write("%-8s disabled\n", c.name); err != nil {
 					return err
 				}
 				continue
 			}
 			if err := c.run(); err != nil {
 				failures = append(failures, err.Error())
-				if werr := write("%-5s %-8s %v\n", c.name, "FAIL", err); werr != nil {
+				if werr := write("%-8s FAIL      %v\n", c.name, err); werr != nil {
 					return werr
 				}
 				continue
 			}
 			if err := preflightBinds(c.binds); err != nil {
 				failures = append(failures, err.Error())
-				if werr := write("%-5s %-8s %v\n", c.name, "FAIL", err); werr != nil {
+				if werr := write("%-8s FAIL      %v\n", c.name, err); werr != nil {
 					return werr
 				}
 				continue
 			}
-			if err := write("%-5s %-8s OK\n", c.name, ""); err != nil {
+			if err := write("%-8s OK\n", c.name); err != nil {
+				return err
+			}
+		}
+
+		for _, l := range cfg.Listeners {
+			if !l.IsEnabled() {
+				if err := write("%-8s disabled\n", l.Name); err != nil {
+					return err
+				}
+				continue
+			}
+
+			conf, err := listenerConfig(l, configDir)
+			if err != nil {
+				failures = append(failures, err.Error())
+				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+					return werr
+				}
+				continue
+			}
+
+			// compile the lua script to catch errors
+			if _, err := handler.New(conf.HandlerSpec, conf.BaseDir); err != nil {
+				failures = append(failures, err.Error())
+				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+					return werr
+				}
+				continue
+			}
+
+			if err := preflightBinds([]bindTarget{{net: conf.Network, addr: conf.Addr}}); err != nil {
+				failures = append(failures, err.Error())
+				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+					return werr
+				}
+				continue
+			}
+
+			if err := write("%-8s OK        %s %s %s\n", l.Name, conf.Network, conf.Addr, conf.HandlerSpec); err != nil {
 				return err
 			}
 		}

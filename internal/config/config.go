@@ -25,13 +25,14 @@ const (
 var defaultConfigTOML []byte
 
 type Config struct {
-	General GeneralConfig `koanf:"general"`
-	DNS     DNSConfig     `koanf:"dns"`
-	HTTP    HTTPConfig    `koanf:"http"`
-	HTTPS   HTTPSConfig   `koanf:"https"`
-	SMTP    SMTPConfig    `koanf:"smtp"`
-	SMTPS   SMTPSConfig   `koanf:"smtps"`
-	Logging LoggingConfig `koanf:"logging"`
+	General   GeneralConfig    `koanf:"general"`
+	DNS       DNSConfig        `koanf:"dns"`
+	HTTP      HTTPConfig       `koanf:"http"`
+	HTTPS     HTTPSConfig      `koanf:"https"`
+	SMTP      SMTPConfig       `koanf:"smtp"`
+	SMTPS     SMTPSConfig      `koanf:"smtps"`
+	Logging   LoggingConfig    `koanf:"logging"`
+	Listeners []ListenerConfig `koanf:"listeners"`
 }
 
 type GeneralConfig struct {
@@ -70,7 +71,8 @@ type HTTPSConfig struct {
 
 type SMTPConfig struct {
 	Enabled           bool   `koanf:"enabled"`
-	Addr              string `koanf:"addr"`                // ":25"
+	Listen            string `koanf:"listen"`              // ":25"
+	Addr              string `koanf:"addr"`                // legacy alias for listen
 	Domain            string `koanf:"domain"`              // "localhost"
 	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
@@ -83,7 +85,8 @@ type SMTPConfig struct {
 
 type SMTPSConfig struct {
 	Enabled           bool   `koanf:"enabled"`
-	Addr              string `koanf:"addr"`                // ":465"
+	Listen            string `koanf:"listen"`              // ":465"
+	Addr              string `koanf:"addr"`                // legacy alias for listen
 	Domain            string `koanf:"domain"`              // "localhost"
 	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
 	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
@@ -101,6 +104,29 @@ type LoggingConfig struct {
 	Level     string `koanf:"level"`
 }
 
+// ListenerConfig is a single [[listeners]] entry; Enabled/Capture default
+// to true when unset.
+type ListenerConfig struct {
+	Name        string        `koanf:"name"`
+	Enabled     *bool         `koanf:"enabled"`
+	Type        string        `koanf:"type"`
+	Listen      string        `koanf:"listen"`
+	Handler     string        `koanf:"handler"`
+	ReadTimeout time.Duration `koanf:"read_timeout"`
+	TLS         bool          `koanf:"tls"`
+	TLSCert     string        `koanf:"tls_cert"`
+	TLSKey      string        `koanf:"tls_key"`
+	Capture     *bool         `koanf:"capture"`
+}
+
+func (c ListenerConfig) IsEnabled() bool {
+	return c.Enabled == nil || *c.Enabled
+}
+
+func (c ListenerConfig) ShouldCapture() bool {
+	return c.Capture == nil || *c.Capture
+}
+
 func Default() Config {
 	return Config{
 		General: GeneralConfig{ShutdownTimeout: 2 * time.Second},
@@ -108,7 +134,7 @@ func Default() Config {
 			Enabled:  true,
 			Listen:   ":53",
 			Network:  "udp",
-			IPv4:     "127.0.0.1",
+			IPv4:     "auto",
 			IPv6:     "::1",
 			Domain:   "localhost",
 			TXT:      "TXT record response from GoNetSim",
@@ -129,7 +155,7 @@ func Default() Config {
 		},
 		SMTP: SMTPConfig{
 			Enabled:           true,
-			Addr:              ":25",
+			Listen:            ":25",
 			Domain:            "localhost",
 			WriteTimeout:      10,
 			ReadTimeout:       10,
@@ -140,7 +166,7 @@ func Default() Config {
 		},
 		SMTPS: SMTPSConfig{
 			Enabled:           true,
-			Addr:              ":465",
+			Listen:            ":465",
 			Domain:            "localhost",
 			WriteTimeout:      10,
 			ReadTimeout:       10,
@@ -178,6 +204,18 @@ func (c Config) Validate() error {
 		return fmt.Errorf("logging.level must be one of: debug, info, warn, error")
 	}
 
+	// deep listener validation happens in the listener package
+	names := make(map[string]bool, len(c.Listeners))
+	for _, l := range c.Listeners {
+		if strings.TrimSpace(l.Name) == "" {
+			return errors.New("each listener must have a name")
+		}
+		if names[l.Name] {
+			return fmt.Errorf("listener name %q is used more than once", l.Name)
+		}
+		names[l.Name] = true
+	}
+
 	return nil
 }
 
@@ -203,24 +241,52 @@ func LoadOrCreateWithOverrides(configPath string, overrides map[string]any) (Loa
 		return LoadResult{}, err
 	}
 
+	cfg, err := loadConfigFile(resolved, overrides)
+	if err != nil {
+		return LoadResult{}, err
+	}
+	return LoadResult{Config: cfg, Path: resolved, Created: created}, nil
+}
+
+// LoadOptional never creates a config file, unlike LoadOrCreate
+func LoadOptional(configPath string, overrides map[string]any) (LoadResult, error) {
+	var path string
+	if configPath != "" {
+		if !fileExists(configPath) {
+			return LoadResult{}, fmt.Errorf("config file %q not found", configPath)
+		}
+		path = configPath
+	} else if existing, ok := firstExistingFile(defaultSearchPaths()); ok {
+		path = existing
+	} else {
+		return LoadResult{Config: Default()}, nil
+	}
+
+	cfg, err := loadConfigFile(path, overrides)
+	if err != nil {
+		return LoadResult{}, err
+	}
+	return LoadResult{Config: cfg, Path: path}, nil
+}
+
+func loadConfigFile(path string, overrides map[string]any) (Config, error) {
 	k := koanf.New(".")
 
-	if err := k.Load(file.Provider(resolved), toml.Parser()); err != nil {
-		return LoadResult{}, fmt.Errorf("load config %q: %w", resolved, err)
+	if err := k.Load(file.Provider(path), toml.Parser()); err != nil {
+		return Config{}, fmt.Errorf("load config %q: %w", path, err)
 	}
 
 	if len(overrides) > 0 {
 		if err := k.Load(confmap.Provider(overrides, "."), nil); err != nil {
-			return LoadResult{}, fmt.Errorf("load overrides: %w", err)
+			return Config{}, fmt.Errorf("load overrides: %w", err)
 		}
 	}
 
 	out := Default()
 	if err := k.UnmarshalWithConf("", &out, koanf.UnmarshalConf{Tag: "koanf"}); err != nil {
-		return LoadResult{}, fmt.Errorf("unmarshal config: %w", err)
+		return Config{}, fmt.Errorf("unmarshal config: %w", err)
 	}
-
-	return LoadResult{Config: out, Path: resolved, Created: created}, nil
+	return out, nil
 }
 
 func resolveAndCreate(configPath string) (string, bool, error) {
