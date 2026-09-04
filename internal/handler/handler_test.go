@@ -32,6 +32,7 @@ func testCapture(t *testing.T) (*capture.Writer, func() string) {
 	if err != nil {
 		t.Fatalf("Conn: %v", err)
 	}
+	t.Cleanup(func() { _ = w.Close() })
 	return w, func() string {
 		entries, err := os.ReadDir(filepath.Join(base, "test"))
 		if err != nil || len(entries) != 1 {

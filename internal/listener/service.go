@@ -23,7 +23,7 @@ func NewService(conf Config, logger *slog.Logger) (service.Service, error) {
 	}
 
 	log := service.NewPrefixedLogger(logger, conf.Name)
-	store := &captureStore{store: nil}
+	store := &captureStore{}
 	if conf.Capture {
 		baseDir := conf.CaptureDir
 		if baseDir == "" {
@@ -35,8 +35,8 @@ func NewService(conf Config, logger *slog.Logger) (service.Service, error) {
 		}
 		store.store = cs
 	}
-
 	if conf.Network == "udp" {
+		store.idle = conf.ReadTimeout
 		return &udpService{conf: conf, handler: h, log: log, store: store}, nil
 	}
 	return &tcpService{conf: conf, handler: h, log: log, store: store}, nil
@@ -44,9 +44,15 @@ func NewService(conf Config, logger *slog.Logger) (service.Service, error) {
 
 type captureStore struct {
 	store *capture.Store
+	idle  time.Duration
 
 	mu      sync.Mutex
-	writers map[string]*capture.Writer
+	entries map[string]*captureEntry
+}
+
+type captureEntry struct {
+	w    *capture.Writer
+	last time.Time
 }
 
 func (cs *captureStore) writer(key string) (*capture.Writer, error) {
@@ -55,34 +61,45 @@ func (cs *captureStore) writer(key string) (*capture.Writer, error) {
 	}
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	if w, ok := cs.writers[key]; ok {
-		return w, nil
+
+	now := time.Now()
+	if cs.idle > 0 {
+		for k, e := range cs.entries {
+			if now.Sub(e.last) > cs.idle {
+				_ = e.w.Close()
+				delete(cs.entries, k)
+			}
+		}
 	}
-	w, err := cs.store.Conn(key, time.Now())
+	if e, ok := cs.entries[key]; ok {
+		e.last = now
+		return e.w, nil
+	}
+	w, err := cs.store.Conn(key, now)
 	if err != nil {
 		return nil, err
 	}
-	if cs.writers == nil {
-		cs.writers = make(map[string]*capture.Writer)
+	if cs.entries == nil {
+		cs.entries = make(map[string]*captureEntry)
 	}
-	cs.writers[key] = w
+	cs.entries[key] = &captureEntry{w: w, last: now}
 	return w, nil
 }
 
 func (cs *captureStore) closeAll() {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	for _, w := range cs.writers {
-		_ = w.Close()
+	for _, e := range cs.entries {
+		_ = e.w.Close()
 	}
-	cs.writers = nil
+	cs.entries = nil
 }
 
 func (cs *captureStore) release(key string) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	if w, ok := cs.writers[key]; ok {
-		delete(cs.writers, key)
-		_ = w.Close()
+	if e, ok := cs.entries[key]; ok {
+		delete(cs.entries, key)
+		_ = e.w.Close()
 	}
 }

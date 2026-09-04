@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
@@ -265,27 +266,30 @@ func TestTCPServiceTLS(t *testing.T) {
 func TestUDPService(t *testing.T) {
 	exchange := func(t *testing.T, addr, payload, want string) {
 		t.Helper()
-		client, err := net.Dial("udp", addr)
+		server, err := net.ResolveUDPAddr("udp", addr)
 		if err != nil {
-			t.Fatalf("Dial: %v", err)
+			t.Fatalf("ResolveUDPAddr: %v", err)
 		}
-		defer func() { _ = client.Close() }()
-		_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+		pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("ListenPacket: %v", err)
+		}
+		defer func() { _ = pc.Close() }()
 
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
-			if _, err := client.Write([]byte(payload)); err != nil {
-				t.Fatalf("Write: %v", err)
+			if _, err := pc.WriteTo([]byte(payload), server); err != nil {
+				t.Fatalf("WriteTo: %v", err)
 			}
+			_ = pc.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 			buf := make([]byte, 64)
-			n, err := client.Read(buf)
+			n, _, err := pc.ReadFrom(buf)
 			if err == nil {
 				if string(buf[:n]) != want {
 					t.Fatalf("expected %q, got %q", want, buf[:n])
 				}
 				return
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
 		t.Fatalf("no reply for %q", payload)
 	}
@@ -322,6 +326,36 @@ func TestUDPService(t *testing.T) {
 		startService(t, svc)
 		exchange(t, conf.Addr, "ping", "pong")
 	})
+}
+
+// TestCaptureStoreEviction verifies idle UDP writers are swept so capture
+// files don't accumulate open handles for the life of the listener
+func TestCaptureStoreEviction(t *testing.T) {
+	cs, err := capture.NewStore(t.TempDir(), "evict")
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	store := &captureStore{store: cs, idle: 30 * time.Millisecond}
+
+	_, err = store.writer("10.0.0.1:1")
+	if err != nil {
+		t.Fatalf("writer a: %v", err)
+	}
+	time.Sleep(60 * time.Millisecond)
+
+	if _, err := store.writer("10.0.0.2:2"); err != nil { // sweeps the idle writer
+		t.Fatalf("writer b: %v", err)
+	}
+	if len(store.entries) != 1 {
+		t.Fatalf("expected idle writer to be evicted, %d entries remain", len(store.entries))
+	}
+
+	if _, err := store.writer("10.0.0.1:1"); err != nil {
+		t.Fatalf("writer a again: %v", err)
+	}
+	if len(store.entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(store.entries))
+	}
 }
 
 func TestStartWithCancelledContext(t *testing.T) {
