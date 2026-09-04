@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // / <summary>
@@ -64,6 +65,95 @@ func TestLoadOrCreateWithOverrides_AppliesOverrides(t *testing.T) {
 	if res.Config.DNS.Enabled {
 		t.Fatalf("expected dns.enabled=false via override")
 	}
+}
+
+func TestListenersConfig(t *testing.T) {
+	t.Run("parse and defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "gonetsim.toml")
+		content := `
+[[listeners]]
+name = "irc"
+type = "tcp"
+listen = ":6667"
+handler = "lua:handlers/irc.lua"
+read_timeout = "45s"
+
+[[listeners]]
+name = "off"
+enabled = false
+type = "tcp"
+listen = ":1234"
+handler = "builtin:echo"
+
+[[listeners]]
+name = "sink"
+type = "udp"
+listen = ":9999"
+handler = "builtin:sink"
+capture = false
+`
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		res, err := LoadOrCreate(path)
+		if err != nil {
+			t.Fatalf("LoadOrCreate: %v", err)
+		}
+		if err := res.Config.Validate(); err != nil {
+			t.Fatalf("Validate: %v", err)
+		}
+		if len(res.Config.Listeners) != 3 {
+			t.Fatalf("expected 3 listeners, got %d", len(res.Config.Listeners))
+		}
+
+		irc := res.Config.Listeners[0]
+		if irc.Name != "irc" || irc.Type != "tcp" || irc.Listen != ":6667" || irc.Handler != "lua:handlers/irc.lua" {
+			t.Fatalf("unexpected irc listener %+v", irc)
+		}
+		if !irc.IsEnabled() || !irc.ShouldCapture() {
+			t.Fatalf("expected enabled and capture to default true")
+		}
+		if irc.ReadTimeout != 45*time.Second {
+			t.Fatalf("expected read_timeout 45s, got %v", irc.ReadTimeout)
+		}
+		if res.Config.Listeners[1].IsEnabled() {
+			t.Fatalf("expected enabled=false to be respected")
+		}
+		if res.Config.Listeners[2].ShouldCapture() {
+			t.Fatalf("expected capture=false to be respected")
+		}
+	})
+
+	t.Run("duplicate names rejected", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "gonetsim.toml")
+		content := `
+[[listeners]]
+name = "dup"
+type = "tcp"
+listen = ":1"
+handler = "builtin:echo"
+
+[[listeners]]
+name = "dup"
+type = "tcp"
+listen = ":2"
+handler = "builtin:echo"
+`
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		res, err := LoadOrCreate(path)
+		if err != nil {
+			t.Fatalf("LoadOrCreate: %v", err)
+		}
+		if err := res.Config.Validate(); err == nil {
+			t.Fatalf("expected duplicate listener name error")
+		}
+	})
 }
 
 func TestFirstExistingFile_PrefersLocalThenUserThenSystem(t *testing.T) {

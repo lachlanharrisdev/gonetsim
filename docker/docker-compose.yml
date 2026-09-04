@@ -29,3 +29,14 @@ services:
     # if you want to pin the config to /etc/gonetsim/gonetsim.toml, mount it there:
     # volumes:
     #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
+
+    # custom listener Lua scripts are resolved relative to the config file's
+    # directory, so mount them alongside it:
+    # volumes:
+    #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
+    #   - ../handlers:/etc/gonetsim/handlers:ro
+
+    # listener capture files are written to ./artifacts inside the container
+    # (i.e. /artifacts); mount a volume there to keep them:
+    # volumes:
+    #   - ./artifacts:/artifacts

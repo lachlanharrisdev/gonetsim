@@ -1,0 +1,67 @@
+# Example GoNetSim configuration demonstrating custom listeners
+#
+# This config disables the built-in services and runs four custom listeners:
+#   - irc  : fake IRC server   (lua:handlers/irc.lua)
+#   - ftp  : fake FTP server   (lua:handlers/ftp.lua)
+#   - echo : TCP echo service  (builtin:echo)
+#   - sink : UDP discard sink  (builtin:sink)
+#
+# Run from the repository root with:
+#   gonetsim --config examples/gonetsim-listeners.toml
+#
+# Individual targets can also be run on demand, regardless of their enabled
+# flag:
+#   gonetsim run irc --config examples/gonetsim-listeners.toml
+#
+# Or without any configuration at all:
+#   gonetsim run echo@:7777
+#   gonetsim run lua:examples/handlers/irc.lua@:6667
+#
+# Lua script paths are resolved relative to this config file's directory.
+
+[general]
+shutdown_timeout = "2s"
+
+[dns]
+enabled = false
+
+[http]
+enabled = false
+
+[https]
+enabled = false
+
+[smtp]
+enabled = false
+
+[smtps]
+enabled = false
+
+[logging]
+format = "text"
+level = "info"
+
+[[listeners]]
+name = "irc"
+type = "tcp"
+listen = ":6667"
+handler = "lua:handlers/irc.lua"
+
+[[listeners]]
+name = "ftp"
+type = "tcp"
+listen = ":2121"
+handler = "lua:handlers/ftp.lua"
+read_timeout = "60s"
+
+[[listeners]]
+name = "echo"
+type = "tcp"
+listen = ":7777"
+handler = "builtin:echo"
+
+[[listeners]]
+name = "sink"
+type = "udp"
+listen = ":9999"
+handler = "builtin:sink"

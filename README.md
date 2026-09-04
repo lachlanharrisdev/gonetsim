@@ -37,21 +37,35 @@ Installation instructions can be found [here](https://gonetsim.lachlanharris.dev
 
 ### Quick Start
 
-Running `gonetsim` starts all services based on the default configuration file
+Running `gonetsim` starts all services enabled in the configuration file:
 
-```yaml
+```sh
 gonetsim
 ```
 
-Alternatively, you can specify an individual service to run
+Individual services and listeners can be selected as targets — preset names, listener names from config, or inline `handler@addr` listeners:
 
-```yaml
-gonetsim dns
-gonetsim http
-gonetsim https
-gonetsim smtp
-gonetsim smtps
-...
+```sh
+gonetsim run http               # just the HTTP service
+gonetsim run http dns           # multiple presets
+gonetsim run irc                # a named [[listeners]] entry from config
+gonetsim run echo@:7777         # inline echo listener, no config needed
+gonetsim run sink@:9999/udp     # inline UDP sink
+gonetsim run c2.lua@:8080       # inline Lua handler from a local script
+```
+
+Targets named explicitly run regardless of their `enabled` setting in config. Common tweaks are also available as flags which override the config file:
+
+```sh
+gonetsim run http --listen 127.0.0.1:8080
+gonetsim run c2.lua@:8080 --tls --no-capture
+gonetsim run http -s http.mode=real -s http.root_dir=/srv/www
+```
+
+To debug a Lua handler without opening a port, pipe traffic through it:
+
+```sh
+gonetsim script handlers/irc.lua
 ```
 
 <br/>
@@ -75,6 +89,24 @@ gonetsim --config /path/to/gonetsim.toml
 ```
 
 For more information on configuration, please see the [configuration reference](https://gonetsim.lachlanharris.dev/references/configuration)
+
+<br/>
+
+## Custom Listeners
+
+Beyond the built-in services, GoNetSim can simulate arbitrary TCP/UDP protocols through custom listeners. Listeners can either use basic builtins or fully custom Lua scripts:
+
+```toml
+[[listeners]]
+name = "irc"
+type = "tcp"
+listen = ":6667"
+handler = "lua:handlers/irc.lua" 
+```
+
+Run it with `gonetsim run irc`, or skip using a pre-defined config entirely with `gonetsim run lua:handlers/irc.lua@:6667`.
+
+The [`examples/`](examples/) directory has a full sample config plus example IRC and FTP handlers.
 
 <br/>
 

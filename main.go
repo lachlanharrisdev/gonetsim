@@ -10,11 +10,12 @@ import (
 )
 
 func main() {
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	// the banner goes to stderr so stdout stays clean for command output
+	if isatty.IsTerminal(os.Stderr.Fd()) {
 		muted := color.New(color.FgHiBlack).SprintFunc()
-		fmt.Printf("%s GoNetSim %s. Copyright (c) 2026 Lachlan Harris %s\n\n", muted("=="), cmd.GetVersionLine(), muted("=="))
+		fmt.Fprintf(os.Stderr, "%s GoNetSim %s. Copyright (c) 2026 Lachlan Harris %s\n\n", muted("=="), cmd.GetVersionLine(), muted("=="))
 	} else {
-		fmt.Printf("== GoNetSim %s. Copyright (c) 2026 Lachlan Harris ==\n\n", cmd.GetVersionLine())
+		fmt.Fprintf(os.Stderr, "== GoNetSim %s. Copyright (c) 2026 Lachlan Harris ==\n\n", cmd.GetVersionLine())
 	}
 	cmd.Execute()
 }

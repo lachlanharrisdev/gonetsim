@@ -3,6 +3,7 @@ package dnsserver
 import (
 	"errors"
 	"log/slog"
+	"net"
 	"net/netip"
 	"strings"
 
@@ -10,6 +11,30 @@ import (
 
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 )
+
+const AutoIPv4 = "auto"
+
+func AutoSinkholeIPv4() netip.Addr {
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			// AddrFromSlice returns ipv4 addresses as 4-in-6, unmap for Is4
+			addr, ok := netip.AddrFromSlice(ipnet.IP)
+			if !ok {
+				continue
+			}
+			addr = addr.Unmap()
+			if addr.Is4() && !addr.IsLoopback() && addr.IsGlobalUnicast() {
+				return addr
+			}
+		}
+	}
+	return netip.MustParseAddr("127.0.0.1")
+}
 
 func (s *Server) Name() string {
 	return "DNS"
