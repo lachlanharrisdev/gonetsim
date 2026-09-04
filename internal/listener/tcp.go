@@ -32,7 +32,7 @@ func (s *tcpService) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	if s.conf.TLS != nil {
 		tlsConf, err := s.conf.TLS.TLSConfig()
@@ -79,7 +79,7 @@ func (s *tcpService) accept(ctx context.Context, ln net.Listener) error {
 }
 
 func (s *tcpService) handleConn(ctx context.Context, conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	remote := conn.RemoteAddr().String()
 	defer s.store.release(remote)

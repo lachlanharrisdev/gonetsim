@@ -132,10 +132,10 @@ func parseSets(sets []string) (map[string]any, error) {
 		if !ok || strings.TrimSpace(key) == "" {
 			return nil, fmt.Errorf("invalid --set %q (expected key=value)", s)
 		}
-		switch {
-		case value == "true":
+		switch value {
+		case "true":
 			out[key] = true
-		case value == "false":
+		case "false":
 			out[key] = false
 		default:
 			if n, err := strconv.Atoi(value); err == nil {

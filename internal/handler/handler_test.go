@@ -42,12 +42,23 @@ func testCapture(t *testing.T) (*capture.Writer, func() string) {
 	}
 }
 
+// pipe returns a connected pair, closed on test cleanup.
+func pipe(t *testing.T) (client, server net.Conn) {
+	t.Helper()
+	client, server = net.Pipe()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+	return client, server
+}
+
 // servePipe runs h against one end of a pipe; the other end is returned for
 // the test to act as the client.
 func servePipe(t *testing.T, h Handler, env Env) (net.Conn, <-chan error) {
 	t.Helper()
 	client, server := net.Pipe()
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { _ = client.Close() })
 	done := make(chan error, 1)
 	go func() {
 		done <- h.HandleTCP(t.Context(), server, env)
@@ -75,7 +86,7 @@ func TestBuiltins(t *testing.T) {
 		w, read := testCapture(t)
 		client, done := servePipe(t, EchoHandler{}, Env{Logger: discardLogger(), Capture: w})
 		roundtrip(t, client, "abc", "abc")
-		client.Close()
+		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
@@ -88,7 +99,7 @@ func TestBuiltins(t *testing.T) {
 		w, read := testCapture(t)
 		client, done := servePipe(t, SinkHandler{}, Env{Logger: discardLogger(), Capture: w})
 		roundtrip(t, client, "secret exfil", "")
-		client.Close()
+		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
@@ -142,7 +153,7 @@ func TestLuaHandler(t *testing.T) {
 		}
 		client, done := servePipe(t, h, Env{Logger: discardLogger()})
 		roundtrip(t, client, "hello\nworld\n", "echo: hello\necho: world\n")
-		client.Close()
+		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
@@ -155,7 +166,7 @@ func TestLuaHandler(t *testing.T) {
 		}
 		client, done := servePipe(t, h, Env{Logger: discardLogger()})
 		roundtrip(t, client, "ABCDrest", "got:ABCD")
-		client.Close()
+		_ = client.Close()
 		<-done
 	})
 
@@ -166,7 +177,7 @@ func TestLuaHandler(t *testing.T) {
 		}
 		client, done := servePipe(t, h, Env{Logger: discardLogger()})
 		roundtrip(t, client, "GET / HTTP/1.1\r\nHost: x\r\n\r\nrest", "len:27")
-		client.Close()
+		_ = client.Close()
 		<-done
 	})
 
@@ -193,7 +204,7 @@ func TestLuaHandler(t *testing.T) {
 		w, read := testCapture(t)
 		client, done := servePipe(t, h, Env{Logger: discardLogger(), Capture: w})
 		roundtrip(t, client, "payload", "")
-		client.Close()
+		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
@@ -217,7 +228,7 @@ func TestLuaHandler(t *testing.T) {
 		if !strings.Contains(reply, "io=nil") || !strings.Contains(reply, "os=nil") || !strings.Contains(reply, "require=nil") {
 			t.Fatalf("sandbox globals leaked: %q", reply)
 		}
-		client.Close()
+		_ = client.Close()
 		<-done
 	})
 }
@@ -235,9 +246,7 @@ func TestLuaConnLimits(t *testing.T) {
 	}
 
 	t.Run("read_line cap", func(t *testing.T) {
-		client, server := net.Pipe()
-		defer client.Close()
-		defer server.Close()
+		client, server := pipe(t)
 		flood(client)
 
 		lc := newLuaConn(server)
@@ -248,9 +257,7 @@ func TestLuaConnLimits(t *testing.T) {
 	})
 
 	t.Run("read_until cap", func(t *testing.T) {
-		client, server := net.Pipe()
-		defer client.Close()
-		defer server.Close()
+		client, server := pipe(t)
 		flood(client)
 
 		lc := newLuaConn(server)
@@ -261,13 +268,11 @@ func TestLuaConnLimits(t *testing.T) {
 	})
 
 	t.Run("read_until across chunks", func(t *testing.T) {
-		client, server := net.Pipe()
-		defer client.Close()
-		defer server.Close()
+		client, server := pipe(t)
 		go func() {
-			client.Write([]byte("HEAD"))
-			client.Write([]byte("ER:X"))
-			client.Write([]byte("\r\n\r\n"))
+			_, _ = client.Write([]byte("HEAD"))
+			_, _ = client.Write([]byte("ER:X"))
+			_, _ = client.Write([]byte("\r\n\r\n"))
 		}()
 
 		lc := newLuaConn(server)

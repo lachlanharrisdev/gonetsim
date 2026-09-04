@@ -18,9 +18,9 @@ func TestLuaSleepAndSNI(t *testing.T) {
 		// the read after sleep(200) must still succeed even though more
 		// than IdleTimeout passed since the first read
 		go func() {
-			client.Write([]byte("go"))
+			_, _ = client.Write([]byte("go"))
 			time.Sleep(50 * time.Millisecond)
-			client.Write([]byte("again"))
+			_, _ = client.Write([]byte("again"))
 		}()
 
 		start := time.Now()
@@ -34,7 +34,7 @@ func TestLuaSleepAndSNI(t *testing.T) {
 		if time.Since(start) < 150*time.Millisecond {
 			t.Fatalf("sleep(200) returned early")
 		}
-		client.Close()
+		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
@@ -46,7 +46,7 @@ func TestLuaSleepAndSNI(t *testing.T) {
 			t.Fatalf("NewLua: %v", err)
 		}
 		client, done := servePipe(t, h, Env{Logger: discardLogger()})
-		client.Write([]byte("go"))
+		_, _ = client.Write([]byte("go"))
 		if err := <-done; err == nil || !strings.Contains(err.Error(), "exceeds") {
 			t.Fatalf("expected sleep cap error, got: %v", err)
 		}
@@ -65,7 +65,7 @@ func TestLuaSleepAndSNI(t *testing.T) {
 		if string(buf) != "no-sni" {
 			t.Fatalf("expected no-sni, got %q", buf)
 		}
-		client.Close()
+		_ = client.Close()
 		<-done
 	})
 }

@@ -36,23 +36,23 @@ func parsePackFormat(f string) ([]packItem, error) {
 
 	for i := 0; i < len(f); i++ {
 		c := f[i]
-		switch {
-		case c == ' ':
-		case c == '<':
+		switch c {
+		case ' ':
+		case '<':
 			endian = binary.LittleEndian
-		case c == '>':
+		case '>':
 			endian = binary.BigEndian
-		case c == '=':
+		case '=':
 			endian = binary.LittleEndian
-		case c == '!':
+		case '!':
 			return nil, fmt.Errorf("alignment ('!') is not supported")
-		case c == 'x':
+		case 'x':
 			items = append(items, packItem{op: 'x', size: 1})
-		case c == 'b' || c == 'B':
+		case 'b', 'B':
 			items = append(items, packItem{op: c, size: 1, endian: endian})
-		case c == 'h' || c == 'H':
+		case 'h', 'H':
 			items = append(items, packItem{op: c, size: 2, endian: endian})
-		case c == 'i' || c == 'I':
+		case 'i', 'I':
 			n, next, err := scanSize(f, i+1, defaultIntSize)
 			if err != nil {
 				return nil, err
@@ -62,13 +62,13 @@ func parsePackFormat(f string) ([]packItem, error) {
 			}
 			items = append(items, packItem{op: c, size: n, endian: endian})
 			i = next - 1
-		case c == 'l' || c == 'L' || c == 'j' || c == 'J':
+		case 'l', 'L', 'j', 'J':
 			items = append(items, packItem{op: c, size: 8, endian: endian})
-		case c == 'f':
+		case 'f':
 			items = append(items, packItem{op: c, size: 4, endian: endian})
-		case c == 'd' || c == 'n':
+		case 'd', 'n':
 			items = append(items, packItem{op: c, size: 8, endian: endian})
-		case c == 's':
+		case 's':
 			n, next, err := scanSize(f, i+1, defaultLenSize)
 			if err != nil {
 				return nil, err
@@ -78,9 +78,9 @@ func parsePackFormat(f string) ([]packItem, error) {
 			}
 			items = append(items, packItem{op: c, size: n, endian: endian})
 			i = next - 1
-		case c == 'z':
+		case 'z':
 			items = append(items, packItem{op: c})
-		case c == 'c':
+		case 'c':
 			n, next, err := scanSize(f, i+1, 0)
 			if err != nil {
 				return nil, err

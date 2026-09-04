@@ -52,18 +52,6 @@ func effectiveListen(listen, addr string) string {
 
 const defaultReadTimeout = 30 * time.Second
 
-func listenerConfigs(cfg appconfig.Config, configDir string) ([]listener.Config, error) {
-	out := make([]listener.Config, 0, len(cfg.Listeners))
-	for _, l := range cfg.Listeners {
-		conf, err := listenerConfig(l, configDir)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, conf)
-	}
-	return out, nil
-}
-
 func listenerConfig(l appconfig.ListenerConfig, configDir string) (listener.Config, error) {
 	listen, err := parseAddrPort(l.Listen)
 	if err != nil {

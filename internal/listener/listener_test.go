@@ -160,7 +160,7 @@ func TestTCPService(t *testing.T) {
 		if string(buf) != "hello\n" {
 			t.Fatalf("expected echo, got %q", buf)
 		}
-		conn.Close()
+		_ = conn.Close()
 
 		if got := captureFile(t, dir, conf.Name); got != "hello\n" {
 			t.Fatalf("capture content %q", got)
@@ -178,7 +178,7 @@ func TestTCPService(t *testing.T) {
 		startService(t, svc)
 
 		conn := dialTCP(t, conf.Addr)
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 
 		buf := make([]byte, 1)
@@ -197,10 +197,10 @@ func TestTCPService(t *testing.T) {
 
 		conn := dialTCP(t, conf.Addr)
 		_, _ = conn.Write([]byte("boom\n"))
-		conn.Close()
+		_ = conn.Close()
 
 		conn = dialTCP(t, conf.Addr)
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		if _, err := conn.Write([]byte("fine\n")); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
@@ -227,7 +227,7 @@ func TestTCPServiceTLS(t *testing.T) {
 		startService(t, svc)
 
 		conn := dialTLS(t, conf.Addr, "localhost")
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		if _, err := conn.Write([]byte("secure")); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
@@ -251,7 +251,7 @@ func TestTCPServiceTLS(t *testing.T) {
 		startService(t, svc)
 
 		conn := dialTLS(t, conf.Addr, "c2.evil.example")
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, len("sni:c2.evil.example"))
 		if _, err := io.ReadFull(conn, buf); err != nil {
 			t.Fatalf("ReadFull: %v", err)
@@ -269,7 +269,7 @@ func TestUDPService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dial: %v", err)
 		}
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 		_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
 
 		deadline := time.Now().Add(2 * time.Second)

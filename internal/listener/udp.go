@@ -30,7 +30,7 @@ func (s *udpService) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer pc.Close()
+	defer func() { _ = pc.Close() }()
 
 	done := make(chan struct{})
 	defer close(done)
