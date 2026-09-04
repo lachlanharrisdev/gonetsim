@@ -29,8 +29,6 @@ type Config struct {
 	DNS       DNSConfig        `koanf:"dns"`
 	HTTP      HTTPConfig       `koanf:"http"`
 	HTTPS     HTTPSConfig      `koanf:"https"`
-	SMTP      SMTPConfig       `koanf:"smtp"`
-	SMTPS     SMTPSConfig      `koanf:"smtps"`
 	Logging   LoggingConfig    `koanf:"logging"`
 	Listeners []ListenerConfig `koanf:"listeners"`
 }
@@ -67,36 +65,6 @@ type HTTPSConfig struct {
 	RootDir string `koanf:"root_dir"`
 	Cert    string `koanf:"cert"`
 	Key     string `koanf:"key"`
-}
-
-type SMTPConfig struct {
-	Enabled           bool   `koanf:"enabled"`
-	Listen            string `koanf:"listen"`              // ":25"
-	Addr              string `koanf:"addr"`                // legacy alias for listen
-	Domain            string `koanf:"domain"`              // "localhost"
-	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
-	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
-	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
-	MaxRecipients     int    `koanf:"max_recipients"`      // 50
-	RequireAuth       bool   `koanf:"require_auth"`        // false
-	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // true
-	LogCredentials    bool   `koanf:"log_credentials"`     // false
-}
-
-type SMTPSConfig struct {
-	Enabled           bool   `koanf:"enabled"`
-	Listen            string `koanf:"listen"`              // ":465"
-	Addr              string `koanf:"addr"`                // legacy alias for listen
-	Domain            string `koanf:"domain"`              // "localhost"
-	WriteTimeout      int    `koanf:"write_timeout"`       // 10 seconds
-	ReadTimeout       int    `koanf:"read_timeout"`        // 10 seconds
-	MaxMessageBytes   int    `koanf:"max_message_bytes"`   // 1024 * 1024
-	MaxRecipients     int    `koanf:"max_recipients"`      // 50
-	RequireAuth       bool   `koanf:"require_auth"`        // false
-	AllowInsecureAuth bool   `koanf:"allow_insecure_auth"` // false (secure)
-	LogCredentials    bool   `koanf:"log_credentials"`     // false
-	Cert              string `koanf:"cert"`                // Optional TLS cert
-	Key               string `koanf:"key"`                 // Optional TLS key
 }
 
 type LoggingConfig struct {
@@ -152,28 +120,6 @@ func Default() Config {
 			Listen:  ":443",
 			Status:  200,
 			Mode:    "fake",
-		},
-		SMTP: SMTPConfig{
-			Enabled:           true,
-			Listen:            ":25",
-			Domain:            "localhost",
-			WriteTimeout:      10,
-			ReadTimeout:       10,
-			MaxMessageBytes:   1024 * 1024,
-			MaxRecipients:     50,
-			RequireAuth:       false,
-			AllowInsecureAuth: true,
-		},
-		SMTPS: SMTPSConfig{
-			Enabled:           true,
-			Listen:            ":465",
-			Domain:            "localhost",
-			WriteTimeout:      10,
-			ReadTimeout:       10,
-			MaxMessageBytes:   1024 * 1024,
-			MaxRecipients:     50,
-			RequireAuth:       false,
-			AllowInsecureAuth: false,
 		},
 		Logging: LoggingConfig{
 			LogFormat: "text",

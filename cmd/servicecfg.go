@@ -12,7 +12,6 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/dnsserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/listener"
-	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
@@ -41,13 +40,6 @@ func parseOptionalNetipAddr(s string) (netip.Addr, error) {
 		return netip.Addr{}, nil
 	}
 	return parseNetipAddr(s)
-}
-
-func effectiveListen(listen, addr string) string {
-	if listen != "" {
-		return listen
-	}
-	return addr
 }
 
 const defaultReadTimeout = 30 * time.Second
@@ -166,57 +158,6 @@ func httpsConfig(cfg appconfig.HTTPSConfig, configDir string) (httpserver.Config
 	}
 	if err := conf.Validate(); err != nil {
 		return httpserver.Config{}, fmt.Errorf("https: %w", err)
-	}
-	return conf, nil
-}
-
-func smtpConfig(cfg appconfig.SMTPConfig) (smtpserver.Config, error) {
-	listen, err := parseAddrPort(effectiveListen(cfg.Listen, cfg.Addr))
-	if err != nil {
-		return smtpserver.Config{}, fmt.Errorf("smtp.listen: %w", err)
-	}
-	conf := smtpserver.Config{
-		Addr:              listen,
-		Domain:            cfg.Domain,
-		WriteTimeout:      cfg.WriteTimeout,
-		ReadTimeout:       cfg.ReadTimeout,
-		MaxMessageBytes:   cfg.MaxMessageBytes,
-		MaxRecipients:     cfg.MaxRecipients,
-		RequireAuth:       cfg.RequireAuth,
-		AllowInsecureAuth: cfg.AllowInsecureAuth,
-		LogCredentials:    cfg.LogCredentials,
-	}
-	if err := conf.Validate(); err != nil {
-		return smtpserver.Config{}, fmt.Errorf("smtp: %w", err)
-	}
-	return conf, nil
-}
-
-func smtpsConfig(cfg appconfig.SMTPSConfig, configDir string) (smtpserver.Config, error) {
-	listen, err := parseAddrPort(effectiveListen(cfg.Listen, cfg.Addr))
-	if err != nil {
-		return smtpserver.Config{}, fmt.Errorf("smtps.listen: %w", err)
-	}
-	certPath := cfg.Cert
-	keyPath := cfg.Key
-	if certPath == "" && keyPath == "" {
-		certPath = filepath.Join(configDir, tlsprovider.PersistedCertFileName)
-		keyPath = filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
-	}
-	conf := smtpserver.Config{
-		Addr:              listen,
-		Domain:            cfg.Domain,
-		WriteTimeout:      cfg.WriteTimeout,
-		ReadTimeout:       cfg.ReadTimeout,
-		MaxMessageBytes:   cfg.MaxMessageBytes,
-		MaxRecipients:     cfg.MaxRecipients,
-		RequireAuth:       cfg.RequireAuth,
-		AllowInsecureAuth: cfg.AllowInsecureAuth,
-		LogCredentials:    cfg.LogCredentials,
-		TLS:               &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath},
-	}
-	if err := conf.Validate(); err != nil {
-		return smtpserver.Config{}, fmt.Errorf("smtps: %w", err)
 	}
 	return conf, nil
 }

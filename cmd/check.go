@@ -79,24 +79,6 @@ var checkCmd = &cobra.Command{
 				},
 				binds: []bindTarget{{net: "tcp", addr: cfg.HTTPS.Listen}},
 			},
-			{
-				name:    "smtp",
-				enabled: cfg.SMTP.Enabled,
-				run: func() error {
-					_, err := smtpConfig(cfg.SMTP)
-					return err
-				},
-				binds: []bindTarget{{net: "tcp", addr: effectiveListen(cfg.SMTP.Listen, cfg.SMTP.Addr)}},
-			},
-			{
-				name:    "smtps",
-				enabled: cfg.SMTPS.Enabled,
-				run: func() error {
-					_, err := smtpsConfig(cfg.SMTPS, configDir)
-					return err
-				},
-				binds: []bindTarget{{net: "tcp", addr: effectiveListen(cfg.SMTPS.Listen, cfg.SMTPS.Addr)}},
-			},
 		}
 
 		var failures []string

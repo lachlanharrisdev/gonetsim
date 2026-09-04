@@ -57,34 +57,6 @@ status = 200
 mode = "fake"
 root_dir = ""
 
-[smtp]
-enabled = true
-listen = ":25"
-domain = "localhost"
-write_timeout = 10
-read_timeout = 10
-max_message_bytes = 1048576
-max_recipients = 50
-require_auth = false
-allow_insecure_auth = true
-# Log plaintext passwords on successful authentication (warning: security risk)
-log_credentials = false
-
-[smtps]
-enabled = true
-listen = ":465"
-domain = "localhost"
-write_timeout = 10
-read_timeout = 10
-max_message_bytes = 1048576
-max_recipients = 50
-require_auth = false
-allow_insecure_auth = false
-# Log plaintext passwords on successful authentication (warning: security risk)
-log_credentials = false
-cert = ""
-key = ""
-
 [logging]
 # Log output format: "text" or "json".
 format = "text"
@@ -119,3 +91,14 @@ level = "info"
 # tls_key = ""
 # # Write everything a client sends to the artifacts directory.
 # capture = true
+
+# SMTP-style mail sink, served by the example Lua handler:
+#   https://github.com/lachlanharrisdev/gonetsim/tree/main/examples/handlers
+#
+# [[listeners]]
+# name = "smtp"
+# type = "tcp"
+# listen = ":25"
+# handler = "lua:handlers/smtp.lua"
+# # implicit TLS (the 465/SMTPS flavour); STARTTLS is not supported
+# tls = false
