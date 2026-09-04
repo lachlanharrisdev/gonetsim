@@ -227,7 +227,9 @@ func luaPack(L *lua.LState) int {
 			buf = append(buf, s...)
 			buf = append(buf, make([]byte, it.size-len(s))...)
 		}
-		arg++
+		if it.op != 'x' {
+			arg++
+		}
 	}
 
 	if len(buf) > maxPackSize {
