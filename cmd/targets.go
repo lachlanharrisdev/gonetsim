@@ -13,11 +13,10 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/listener"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
-	"github.com/lachlanharrisdev/gonetsim/internal/smtpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
-var presetNames = []string{"dns", "http", "https", "smtp", "smtps"}
+var presetNames = []string{"dns", "http", "https"}
 
 type targetKind int
 
@@ -337,34 +336,6 @@ var presetTargets = []struct {
 				return nil, "", err
 			}
 			return httpserver.NewService(conf, logger), fmt.Sprintf("https(%s)", conf.Addr), nil
-		},
-	},
-	{
-		name:    "smtp",
-		enabled: func(c *appconfig.Config) bool { return c.SMTP.Enabled },
-		build: func(c *appconfig.Config, _ string, opts runOptions, logger *slog.Logger) (service.Service, string, error) {
-			if opts.listen != "" {
-				c.SMTP.Listen = opts.listen
-			}
-			conf, err := smtpConfig(c.SMTP)
-			if err != nil {
-				return nil, "", err
-			}
-			return smtpserver.NewService(conf, logger), fmt.Sprintf("smtp(%s)", conf.Addr), nil
-		},
-	},
-	{
-		name:    "smtps",
-		enabled: func(c *appconfig.Config) bool { return c.SMTPS.Enabled },
-		build: func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger) (service.Service, string, error) {
-			if opts.listen != "" {
-				c.SMTPS.Listen = opts.listen
-			}
-			conf, err := smtpsConfig(c.SMTPS, configDir)
-			if err != nil {
-				return nil, "", err
-			}
-			return smtpserver.NewService(conf, logger), fmt.Sprintf("smtps(%s)", conf.Addr), nil
 		},
 	},
 }

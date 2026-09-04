@@ -31,12 +31,6 @@ enabled = false
 [https]
 enabled = false
 
-[smtp]
-enabled = false
-
-[smtps]
-enabled = false
-
 [logging]
 format = "text"
 level = "info"

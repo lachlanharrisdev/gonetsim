@@ -14,16 +14,12 @@ services:
     #  - "53:53/tcp"
     #  - "80:80"
     #  - "443:443"
-    #  - "25:25"
-    #  - "465:465"
     # note that updating the configuration file won't change the affected host ports, unlike the standalone binary
     ports:
       - "5353:53/udp"
       - "5353:53/tcp"
       - "8080:80"
       - "8443:443"
-      - "1025:25"
-      - "1465:465"
 
     # by default GoNetSim will generate a config file on first start.
     # if you want to pin the config to /etc/gonetsim/gonetsim.toml, mount it there:

@@ -3,8 +3,6 @@ module github.com/lachlanharrisdev/gonetsim
 go 1.26.1
 
 require (
-	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
-	github.com/emersion/go-smtp v0.25.0
 	github.com/fatih/color v1.19.0
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
 	github.com/knadh/koanf/providers/confmap v1.0.1
@@ -17,8 +15,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/gopher-lua v1.1.2
 )
-
-replace github.com/emersion/go-sasl => ./third_party/go-sasl
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect

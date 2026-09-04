@@ -17,8 +17,6 @@ func disabledAll(cfg *appconfig.Config) {
 	cfg.DNS.Enabled = false
 	cfg.HTTP.Enabled = false
 	cfg.HTTPS.Enabled = false
-	cfg.SMTP.Enabled = false
-	cfg.SMTPS.Enabled = false
 }
 
 func TestParseTargets(t *testing.T) {
@@ -181,15 +179,6 @@ func TestServiceConfigMapping(t *testing.T) {
 			if p.name != presetNames[i] || p.enabled == nil || p.build == nil {
 				t.Fatalf("presetTargets[%d] = %q, want %q with enabled/build set", i, p.name, presetNames[i])
 			}
-		}
-	})
-
-	t.Run("effective listen falls back to legacy addr", func(t *testing.T) {
-		if got := effectiveListen(":25", ":9999"); got != ":25" {
-			t.Errorf("listen wins: got %q", got)
-		}
-		if got := effectiveListen("", ":9999"); got != ":9999" {
-			t.Errorf("addr fallback: got %q", got)
 		}
 	})
 
