@@ -5,8 +5,8 @@
   <h1 align="center">GoNetSim</h1>
 
   <p align="center" width="100">
-    Go Network Simulator. A spiritual, unofficial successor to the <a href="https://www.inetsim.org/"><code>inetsim</code> project</a>, providing a suite of tools for simulating common internet services in a controlled environment.
-    <a href="https://gonetsim.lachlanharris.dev"><strong>Explore the docs »</strong></a>
+    Go Network Simulator. A programmable network simulator for malware analysis that lets you simulate any network protocol with small, sandboxed, shareable Lua handlers.
+    <a href="https://gonetsim.lachlanharris.au"><strong>Explore the docs »</strong></a>
     <br />
   </p>
   <p align="center" width="50">
@@ -33,7 +33,7 @@
 
 ### Installation
 
-Installation instructions can be found [here](https://gonetsim.lachlanharris.dev/guides/installation).
+Installation instructions can be found [here](https://gonetsim.lachlanharris.au/guides/installation).
 
 ### Quick Start
 
@@ -43,7 +43,7 @@ Running `gonetsim` starts all services enabled in the configuration file:
 gonetsim
 ```
 
-Individual services and listeners can be selected as targets — preset names, listener names from config, or inline `handler@addr` listeners:
+Individual services and listeners can be selected as targets, as preset names, listener names from config, or inline `handler@addr` listeners:
 
 ```sh
 gonetsim run http               # just the HTTP service
@@ -54,7 +54,7 @@ gonetsim run sink@:9999/udp     # inline UDP sink
 gonetsim run c2.lua@:8080       # inline Lua handler from a local script
 ```
 
-Targets named explicitly run regardless of their `enabled` setting in config. Common tweaks are also available as flags which override the config file:
+Targets named explicitly run regardless of their `enabled` setting in config. Common settings are also available as flags which override the config file:
 
 ```sh
 gonetsim run http --listen 127.0.0.1:8080
@@ -62,11 +62,7 @@ gonetsim run c2.lua@:8080 --tls --no-capture
 gonetsim run http -s http.mode=real -s http.root_dir=/srv/www
 ```
 
-To debug a Lua handler without opening a port, pipe traffic through it:
-
-```sh
-gonetsim script handlers/irc.lua
-```
+A more detailed usage guide can be found [here](https://gonetsim.lachlanharris.au/guides/usage).
 
 <br/>
 
@@ -88,7 +84,7 @@ To use a specific config file:
 gonetsim --config /path/to/gonetsim.toml
 ```
 
-For more information on configuration, please see the [configuration reference](https://gonetsim.lachlanharris.dev/references/configuration)
+For more information on configuration, please see the [configuration reference](https://gonetsim.lachlanharris.au/references/configuration)
 
 <br/>
 
@@ -114,7 +110,7 @@ The [`examples/`](examples/) directory has a full sample config plus example IRC
 
 A lightweight distroless container setup lives in `docker/` and is built/published with `ko`. This is the recommended installation method if you require long periods of uptime, or if your system is incompatible with the provided binaries.
 
-For a full reference guide please see the [Docker guide](https://gonetsim.lachlanharris.dev/guides/docker)
+For a full reference guide please see the [Docker guide](https://gonetsim.lachlanharris.au/guides/docker)
 
 <br/>
 
