@@ -336,6 +336,7 @@ func TestCaptureStoreEviction(t *testing.T) {
 		t.Fatalf("NewStore: %v", err)
 	}
 	store := &captureStore{store: cs, idle: 30 * time.Millisecond}
+	t.Cleanup(func() { store.closeAll() })
 
 	_, err = store.writer("10.0.0.1:1")
 	if err != nil {
