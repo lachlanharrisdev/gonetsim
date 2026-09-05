@@ -184,15 +184,16 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("udp packets", func(t *testing.T) {
+		remote, _ := net.ResolveUDPAddr("udp", "203.0.113.10:53531")
 		h, err := NewLua("testdata/packet.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
-		reply, err := h.HandleUDP(t.Context(), []byte("ping"), nil, Env{Logger: discardLogger()})
+		reply, err := h.HandleUDP(t.Context(), []byte("ping"), remote, Env{Logger: discardLogger()})
 		if err != nil || string(reply) != "pong" {
 			t.Fatalf("ping: %v %q", err, reply)
 		}
-		reply, err = h.HandleUDP(t.Context(), []byte("other"), nil, Env{Logger: discardLogger()})
+		reply, err = h.HandleUDP(t.Context(), []byte("other"), remote, Env{Logger: discardLogger()})
 		if err != nil || reply != nil {
 			t.Fatalf("silent: %v %q", err, reply)
 		}
