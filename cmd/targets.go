@@ -13,6 +13,7 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/listener"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
@@ -152,9 +153,9 @@ type resolvedTarget struct {
 	display string
 }
 
-func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger) ([]resolvedTarget, error) {
+func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store) ([]resolvedTarget, error) {
 	if len(specs) == 0 {
-		return resolveAll(cfg, configDir, opts, logger)
+		return resolveAll(cfg, configDir, opts, logger, global)
 	}
 
 	if opts.listen != "" && len(specs) > 1 {
@@ -163,7 +164,7 @@ func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd st
 
 	out := make([]resolvedTarget, 0, len(specs))
 	for _, spec := range specs {
-		rt, err := resolveOne(spec, cfg, configDir, cwd, opts, logger)
+		rt, err := resolveOne(spec, cfg, configDir, cwd, opts, logger, global)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +173,7 @@ func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd st
 	return out, nil
 }
 
-func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger) ([]resolvedTarget, error) {
+func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, global *state.Store) ([]resolvedTarget, error) {
 	out := make([]resolvedTarget, 0, len(presetTargets)+len(cfg.Listeners))
 	for _, p := range presetTargets {
 		if !p.enabled(cfg) {
@@ -189,7 +190,7 @@ func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger
 		if !l.IsEnabled() {
 			continue
 		}
-		rt, err := resolveOne(targetSpec{raw: l.Name, kind: targetListener, name: l.Name}, cfg, configDir, "", opts, logger)
+		rt, err := resolveOne(targetSpec{raw: l.Name, kind: targetListener, name: l.Name}, cfg, configDir, "", opts, logger, global)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +199,7 @@ func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger
 	return out, nil
 }
 
-func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger) (resolvedTarget, error) {
+func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store) (resolvedTarget, error) {
 	switch spec.kind {
 	case targetPreset:
 		for _, p := range presetTargets {
@@ -231,7 +232,7 @@ func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, o
 		if err := applyListenerRunOptions(&conf, opts, opts.listen); err != nil {
 			return resolvedTarget{}, err
 		}
-		return buildListener(conf, logger)
+		return buildListener(conf, global, logger)
 
 	case targetInline:
 		conf := spec.inline
@@ -239,7 +240,7 @@ func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, o
 		if err := applyListenerRunOptions(&conf, opts, opts.listen); err != nil {
 			return resolvedTarget{}, err
 		}
-		return buildListener(conf, logger)
+		return buildListener(conf, global, logger)
 
 	default:
 		return resolvedTarget{}, fmt.Errorf("unknown target kind %d", spec.kind)
@@ -272,8 +273,8 @@ func applyListenerRunOptions(conf *listener.Config, opts runOptions, listen stri
 	return nil
 }
 
-func buildListener(conf listener.Config, logger *slog.Logger) (resolvedTarget, error) {
-	svc, err := listener.NewService(conf, logger)
+func buildListener(conf listener.Config, global *state.Store, logger *slog.Logger) (resolvedTarget, error) {
+	svc, err := listener.NewService(conf, global, logger)
 	if err != nil {
 		return resolvedTarget{}, err
 	}

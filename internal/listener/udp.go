@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 const maxPacketSize = 65535
@@ -19,6 +20,7 @@ type udpService struct {
 	handler handler.Handler
 	log     *slog.Logger
 	store   *captureStore
+	global  *state.Store
 }
 
 func (s *udpService) Name() string { return s.conf.Name }
@@ -65,7 +67,7 @@ func (s *udpService) readLoop(ctx context.Context, pc net.PacketConn) error {
 		if err != nil {
 			s.log.Warn("capture unavailable", "remote", remote.String(), "err", err)
 		}
-		env := handler.Env{Logger: s.log, Capture: w}
+		env := handler.Env{Logger: s.log, Capture: w, Global: s.global}
 
 		reply, err := s.handler.HandleUDP(ctx, data, remote, env)
 		if err != nil {

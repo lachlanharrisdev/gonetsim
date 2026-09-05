@@ -126,7 +126,7 @@ var checkCmd = &cobra.Command{
 			}
 
 			// compile the lua script to catch errors
-			if _, err := handler.New(conf.HandlerSpec, conf.BaseDir); err != nil {
+			if _, err := handler.New(conf.HandlerSpec, conf.BaseDir, nil); err != nil {
 				failures = append(failures, err.Error())
 				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
 					return werr

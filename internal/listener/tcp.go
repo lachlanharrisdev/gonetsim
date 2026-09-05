@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 type tcpService struct {
@@ -18,6 +19,7 @@ type tcpService struct {
 	handler handler.Handler
 	log     *slog.Logger
 	store   *captureStore
+	global  *state.Store
 
 	conns connSet
 	wg    sync.WaitGroup
@@ -90,7 +92,7 @@ func (s *tcpService) handleConn(ctx context.Context, conn net.Conn) {
 	}
 	conn = newIdleConn(conn, s.conf.ReadTimeout)
 
-	env := handler.Env{Logger: s.log, Capture: w, IdleTimeout: s.conf.ReadTimeout}
+	env := handler.Env{Logger: s.log, Capture: w, IdleTimeout: s.conf.ReadTimeout, Global: s.global}
 	err = s.handler.HandleTCP(ctx, conn, env)
 	switch {
 	case err == nil,
