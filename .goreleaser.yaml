@@ -92,11 +92,11 @@ release:
 
         ## Installation
 
-        Please refer to the [Installation Guide](https://gonetsim.lachlanharris.dev/guides/installation)
+        Please refer to the [Installation Guide](https://gonetsim.lachlanharris.au/guides/installation)
 
         ### Resources
 
-        - [Documentation](https://gonetsim.lachlanharris.dev/)
+        - [Documentation](https://gonetsim.lachlanharris.au/)
         - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)
         - [Discussions](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/discussions)
 
