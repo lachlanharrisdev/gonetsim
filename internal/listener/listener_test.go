@@ -144,7 +144,7 @@ func TestTCPService(t *testing.T) {
 		conf := echoConfig(t)
 		conf.CaptureDir = dir
 
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -172,7 +172,7 @@ func TestTCPService(t *testing.T) {
 		conf := echoConfig(t)
 		conf.ReadTimeout = 200 * time.Millisecond
 
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -190,7 +190,7 @@ func TestTCPService(t *testing.T) {
 
 	t.Run("script errors don't kill the listener", func(t *testing.T) {
 		conf := luaConfig(t, "isotest", "isolated.lua")
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -221,7 +221,7 @@ func TestTCPServiceTLS(t *testing.T) {
 		conf := echoConfig(t)
 		conf.TLS = &tlsprovider.Config{}
 
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -245,7 +245,7 @@ func TestTCPServiceTLS(t *testing.T) {
 		conf := luaConfig(t, "snitest", "sni.lua")
 		conf.TLS = &tlsprovider.Config{}
 
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -302,7 +302,7 @@ func TestUDPService(t *testing.T) {
 			HandlerSpec: "builtin:echo",
 			ReadTimeout: 5 * time.Second,
 		}
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -319,7 +319,7 @@ func TestUDPService(t *testing.T) {
 			BaseDir:     "../handler/testdata",
 			ReadTimeout: 5 * time.Second,
 		}
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -368,7 +368,7 @@ func TestStartWithCancelledContext(t *testing.T) {
 			HandlerSpec: "builtin:sink",
 			ReadTimeout: 5 * time.Second,
 		}
-		svc, err := NewService(conf, testLogger())
+		svc, err := NewService(conf, nil, testLogger())
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -420,7 +420,7 @@ func TestNewServiceValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conf := base()
 			tc.mutate(&conf)
-			_, err := NewService(conf, testLogger())
+			_, err := NewService(conf, nil, testLogger())
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("expected error containing %q, got: %v", tc.wantErr, err)
 			}

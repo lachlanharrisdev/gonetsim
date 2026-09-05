@@ -16,6 +16,7 @@ import (
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 type runOptions struct {
@@ -108,7 +109,13 @@ func runTargets(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resolved, err := resolveTargets(specs, &cfg, configDir, cwd, runOpts, logger)
+	limit, err := state.ParseSize(cfg.State.TotalLimit)
+	if err != nil {
+		return err
+	}
+	global := state.NewStore(state.NewBudget(limit))
+
+	resolved, err := resolveTargets(specs, &cfg, configDir, cwd, runOpts, logger, global)
 	if err != nil {
 		return err
 	}

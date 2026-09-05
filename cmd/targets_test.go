@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 func testLogger() *slog.Logger {
@@ -103,7 +104,7 @@ func TestParseSets(t *testing.T) {
 func TestResolveTargets(t *testing.T) {
 	t.Run("all enabled", func(t *testing.T) {
 		cfg := appconfig.Default()
-		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger())
+		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
 		if err != nil {
 			t.Fatalf("resolveTargets: %v", err)
 		}
@@ -121,7 +122,7 @@ func TestResolveTargets(t *testing.T) {
 			{Name: "off", Enabled: &disabled, Type: "tcp", Listen: "127.0.0.1:0", Handler: "builtin:sink"},
 		}
 
-		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger())
+		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
 		if err != nil {
 			t.Fatalf("resolveTargets: %v", err)
 		}
@@ -129,7 +130,7 @@ func TestResolveTargets(t *testing.T) {
 			t.Fatalf("expected disabled listener to be skipped, got %d targets", len(resolved))
 		}
 
-		resolved, err = resolveTargets(mustSpecs(t, "off"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger())
+		resolved, err = resolveTargets(mustSpecs(t, "off"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
 		if err != nil || len(resolved) != 1 {
 			t.Fatalf("explicit target: %v, %d targets", err, len(resolved))
 		}
@@ -137,7 +138,7 @@ func TestResolveTargets(t *testing.T) {
 
 	t.Run("unknown target lists alternatives", func(t *testing.T) {
 		cfg := appconfig.Default()
-		_, err := resolveTargets(mustSpecs(t, "nope"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger())
+		_, err := resolveTargets(mustSpecs(t, "nope"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
 		if err == nil || !strings.Contains(err.Error(), "unknown target") ||
 			!strings.Contains(err.Error(), "dns") || !strings.Contains(err.Error(), "handler@addr") {
 			t.Fatalf("expected helpful unknown-target error, got: %v", err)
@@ -146,7 +147,7 @@ func TestResolveTargets(t *testing.T) {
 
 	t.Run("inline lua resolves script", func(t *testing.T) {
 		cfg := appconfig.Default()
-		resolved, err := resolveTargets(mustSpecs(t, "testdata/hello.lua@127.0.0.1:0"), &cfg, t.TempDir(), ".", runOptions{}, testLogger())
+		resolved, err := resolveTargets(mustSpecs(t, "testdata/hello.lua@127.0.0.1:0"), &cfg, t.TempDir(), ".", runOptions{}, testLogger(), state.NewStore(nil))
 		if err != nil || len(resolved) != 1 || resolved[0].display != "hello(127.0.0.1:0)" {
 			t.Fatalf("inline lua: %v, %+v", err, resolved)
 		}
@@ -154,7 +155,7 @@ func TestResolveTargets(t *testing.T) {
 
 	t.Run("tls on udp rejected", func(t *testing.T) {
 		cfg := appconfig.Default()
-		_, err := resolveTargets(mustSpecs(t, "sink@:0/udp"), &cfg, t.TempDir(), t.TempDir(), runOptions{tls: true}, testLogger())
+		_, err := resolveTargets(mustSpecs(t, "sink@:0/udp"), &cfg, t.TempDir(), t.TempDir(), runOptions{tls: true}, testLogger(), state.NewStore(nil))
 		if err == nil {
 			t.Fatalf("expected --tls on udp to be rejected")
 		}
@@ -163,7 +164,7 @@ func TestResolveTargets(t *testing.T) {
 	t.Run("listen requires single target", func(t *testing.T) {
 		cfg := appconfig.Default()
 		opts := runOptions{listen: "127.0.0.1:1234"}
-		_, err := resolveTargets(mustSpecs(t, "http", "dns"), &cfg, t.TempDir(), t.TempDir(), opts, testLogger())
+		_, err := resolveTargets(mustSpecs(t, "http", "dns"), &cfg, t.TempDir(), t.TempDir(), opts, testLogger(), state.NewStore(nil))
 		if err == nil {
 			t.Fatalf("expected --listen with multiple targets to fail")
 		}

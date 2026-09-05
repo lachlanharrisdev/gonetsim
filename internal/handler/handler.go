@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/capture"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 type Env struct {
 	Logger      *slog.Logger
 	Capture     *capture.Writer
 	IdleTimeout time.Duration // connection idle timeout, used by conn:sleep
+	Global      *state.Store
 }
 
 // Handler processes network traffic for a listener.
@@ -34,7 +36,9 @@ type Handler interface {
 //	builtin:echo - echo all received data back
 //	builtin:sink - consume and discard all received data
 //	lua:<path>   - serve with a Lua script (relative paths resolve against baseDir)
-func New(spec string, baseDir string) (Handler, error) {
+//
+// A nil budget gives the handler its own private state budget
+func New(spec string, baseDir string, budget *state.Budget) (Handler, error) {
 	scheme, value, ok := strings.Cut(spec, ":")
 	if !ok {
 		return nil, fmt.Errorf("invalid handler %q (expected \"builtin:name\" or \"lua:path\")", spec)
@@ -55,7 +59,7 @@ func New(spec string, baseDir string) (Handler, error) {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(baseDir, path)
 		}
-		return NewLua(path)
+		return NewLua(path, budget)
 	default:
 		return nil, fmt.Errorf("unknown handler scheme %q in %q (must be builtin or lua)", scheme, spec)
 	}

@@ -10,6 +10,7 @@ import (
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 var scriptCmd = &cobra.Command{
@@ -17,7 +18,7 @@ var scriptCmd = &cobra.Command{
 	Short: "Test a Lua handler interactively over stdin/stdout",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		h, err := handler.NewLua(args[0])
+		h, err := handler.NewLua(args[0], nil)
 		if err != nil {
 			return err
 		}
@@ -27,7 +28,8 @@ var scriptCmd = &cobra.Command{
 			return err
 		}
 
-		return h.HandleTCP(cmd.Context(), stdioConn{}, handler.Env{Logger: logger})
+		global := state.NewStore(nil)
+		return h.HandleTCP(cmd.Context(), stdioConn{}, handler.Env{Logger: logger, Global: global})
 	},
 }
 

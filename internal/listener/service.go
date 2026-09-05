@@ -9,15 +9,17 @@ import (
 	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
-// NewService resolves the handler spec (compiling Lua scripts) so
-// misconfiguration fails at startup rather than per connection.
-func NewService(conf Config, logger *slog.Logger) (service.Service, error) {
+func NewService(conf Config, global *state.Store, logger *slog.Logger) (service.Service, error) {
+	if global == nil {
+		global = state.NewStore(nil)
+	}
 	if err := conf.Validate(); err != nil {
 		return nil, fmt.Errorf("listener %s: %w", conf.Name, err)
 	}
-	h, err := handler.New(conf.HandlerSpec, conf.BaseDir)
+	h, err := handler.New(conf.HandlerSpec, conf.BaseDir, global.Budget())
 	if err != nil {
 		return nil, fmt.Errorf("listener %s handler: %w", conf.Name, err)
 	}
@@ -37,9 +39,9 @@ func NewService(conf Config, logger *slog.Logger) (service.Service, error) {
 	}
 	if conf.Network == "udp" {
 		store.idle = conf.ReadTimeout
-		return &udpService{conf: conf, handler: h, log: log, store: store}, nil
+		return &udpService{conf: conf, handler: h, log: log, store: store, global: global}, nil
 	}
-	return &tcpService{conf: conf, handler: h, log: log, store: store}, nil
+	return &tcpService{conf: conf, handler: h, log: log, store: store, global: global}, nil
 }
 
 type captureStore struct {

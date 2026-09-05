@@ -63,6 +63,11 @@ format = "text"
 # Minimum log level: "debug", "info", "warn", "error".
 level = "info"
 
+[state]
+# Total budget for Lua state stores. When a script's set() would push
+# total state past this, it fails gracefully
+total_limit = "64MiB"
+
 # Custom listeners
 #
 # Generic TCP/UDP listeners for anything the services above don't cover.

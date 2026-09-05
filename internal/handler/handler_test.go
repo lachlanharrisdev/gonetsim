@@ -13,6 +13,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/capture"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 func discardLogger() *slog.Logger {
@@ -140,7 +141,7 @@ func TestNewSpecErrors(t *testing.T) {
 		{"lua:sandbox_escape.lua", "testdata"},
 	}
 	for _, tc := range cases {
-		if _, err := New(tc.spec, tc.baseDir); err == nil {
+		if _, err := New(tc.spec, tc.baseDir, nil); err == nil {
 			t.Errorf("New(%q): expected error", tc.spec)
 		}
 	}
@@ -148,7 +149,7 @@ func TestNewSpecErrors(t *testing.T) {
 
 func TestLuaHandler(t *testing.T) {
 	t.Run("tcp line roundtrip", func(t *testing.T) {
-		h, err := NewLua("testdata/line_echo.lua")
+		h, err := NewLua("testdata/line_echo.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -161,7 +162,7 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("tcp read(n)", func(t *testing.T) {
-		h, err := NewLua("testdata/read_n.lua")
+		h, err := NewLua("testdata/read_n.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -172,7 +173,7 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("tcp read_until headers", func(t *testing.T) {
-		h, err := NewLua("testdata/read_until.lua")
+		h, err := NewLua("testdata/read_until.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -183,7 +184,7 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("udp packets", func(t *testing.T) {
-		h, err := NewLua("testdata/packet.lua")
+		h, err := NewLua("testdata/packet.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -198,7 +199,7 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("capture and log", func(t *testing.T) {
-		h, err := NewLua("testdata/capture.lua")
+		h, err := NewLua("testdata/capture.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -215,7 +216,7 @@ func TestLuaHandler(t *testing.T) {
 	})
 
 	t.Run("sandbox globals", func(t *testing.T) {
-		h, err := NewLua("testdata/sandbox_report.lua")
+		h, err := NewLua("testdata/sandbox_report.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -232,6 +233,52 @@ func TestLuaHandler(t *testing.T) {
 		_ = client.Close()
 		<-done
 	})
+}
+
+func TestLuaStateScopes(t *testing.T) {
+	cases := []struct {
+		name        string
+		budget      *state.Budget
+		firstReply  string
+		secondReply string
+	}{
+		{"persistence across connections", state.NewBudget(state.DefaultTotalLimit), "1|conn|yes", "2|conn|yes"},
+		{"set failure is graceful", state.NewBudget(3), "1|nil|nil", "2|nil|nil"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, err := NewLua("testdata/state.lua", tc.budget)
+			if err != nil {
+				t.Fatalf("NewLua: %v", err)
+			}
+
+			env := Env{Logger: discardLogger(), Global: state.NewStore(tc.budget)}
+
+			client, done := servePipe(t, h, env)
+			buf := make([]byte, len(tc.firstReply))
+			if _, err := io.ReadFull(client, buf); err != nil {
+				t.Fatalf("ReadFull: %v", err)
+			}
+			if string(buf) != tc.firstReply {
+				t.Fatalf("first connection = %q, want %q", buf, tc.firstReply)
+			}
+			_ = client.Close()
+			if err := <-done; err != nil {
+				t.Fatalf("HandleTCP: %v", err)
+			}
+
+			client, done = servePipe(t, h, env)
+			buf = make([]byte, len(tc.secondReply))
+			if _, err := io.ReadFull(client, buf); err != nil {
+				t.Fatalf("ReadFull: %v", err)
+			}
+			if string(buf) != tc.secondReply {
+				t.Fatalf("second connection = %q, want %q", buf, tc.secondReply)
+			}
+			_ = client.Close()
+			<-done
+		})
+	}
 }
 
 func TestLuaConnLimits(t *testing.T) {

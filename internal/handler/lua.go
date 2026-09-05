@@ -19,6 +19,7 @@ import (
 	"github.com/yuin/gopher-lua/parse"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/capture"
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 const (
@@ -29,15 +30,14 @@ const (
 	udpEntry = "handle_packet" // handle_packet(data) -> string | nil
 )
 
-// LuaHandler serves connections with a Lua script, compiled once and run
-// fresh per connection so scripts share no state. Scripts are sandboxed;
-// they reach the network only through conn, log and capture.
 type LuaHandler struct {
-	path  string
-	proto *lua.FunctionProto
+	path         string
+	proto        *lua.FunctionProto
+	budget       *state.Budget
+	handlerState *state.Store
 }
 
-func NewLua(path string) (*LuaHandler, error) {
+func NewLua(path string, budget *state.Budget) (*LuaHandler, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read lua script: %w", err)
@@ -57,7 +57,12 @@ func NewLua(path string) (*LuaHandler, error) {
 		return nil, fmt.Errorf("lua script %q defines neither %s(conn) nor %s(data)", path, tcpEntry, udpEntry)
 	}
 
-	return &LuaHandler{path: path, proto: proto}, nil
+	return &LuaHandler{
+		path:         path,
+		proto:        proto,
+		budget:       budget,
+		handlerState: state.NewStore(budget),
+	}, nil
 }
 
 func (h *LuaHandler) HandleTCP(ctx context.Context, conn net.Conn, env Env) error {
@@ -65,7 +70,8 @@ func (h *LuaHandler) HandleTCP(ctx context.Context, conn net.Conn, env Env) erro
 	defer L.Close()
 
 	lc := newLuaConn(conn)
-	if _, err := h.run(L, tcpEntry, 0, registerConn(L, lc, ctx, env)); err != nil {
+	connState := state.NewStore(h.budget)
+	if _, err := h.run(L, tcpEntry, 0, registerConn(L, lc, ctx, env, connState)); err != nil {
 		return fmt.Errorf("lua %s: %w", h.path, err)
 	}
 	return nil
@@ -126,11 +132,50 @@ func (h *LuaHandler) newState(env Env) *lua.LState {
 	openLibs(L)
 	registerLog(L, env.Logger)
 	registerCapture(L, env.Capture)
+
+	global := env.Global
+	if global == nil {
+		global = state.NewStore(h.budget)
+	}
+	registerState(L, "global", global)
+	registerState(L, "handler", h.handlerState)
 	return L
 }
 
-// openLibs loads the sandbox-safe stdlib subset plus string.pack/unpack
-// (a Lua 5.3 feature gopher-lua lacks).
+func registerState(L *lua.LState, name string, store *state.Store) {
+	t := L.NewTable()
+	registerStateMethods(L, t, store)
+	L.SetGlobal(name, t)
+}
+
+func registerStateMethods(L *lua.LState, t *lua.LTable, store *state.Store) {
+	L.SetField(t, "get", L.NewFunction(func(L *lua.LState) int {
+		if v, ok := store.Get(L.CheckString(2)); ok {
+			L.Push(lua.LString(v))
+		} else {
+			L.Push(lua.LNil)
+		}
+		return 1
+	}))
+	L.SetField(t, "set", L.NewFunction(func(L *lua.LState) int {
+		if err := store.Set(L.CheckString(2), L.CheckString(3)); err != nil {
+			L.Push(lua.LFalse)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}))
+	L.SetField(t, "has", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LBool(store.Has(L.CheckString(2))))
+		return 1
+	}))
+	L.SetField(t, "delete", L.NewFunction(func(L *lua.LState) int {
+		store.Delete(L.CheckString(2))
+		return 0
+	}))
+}
+
 func openLibs(L *lua.LState) {
 	lua.OpenBase(L)
 	lua.OpenString(L)
@@ -285,7 +330,7 @@ func (lc *luaConn) readUntil(delim []byte) (lua.LValue, error) {
 	}
 }
 
-func registerConn(L *lua.LState, lc *luaConn, ctx context.Context, env Env) *lua.LTable {
+func registerConn(L *lua.LState, lc *luaConn, ctx context.Context, env Env, connState *state.Store) *lua.LTable {
 	conn := L.NewTable()
 
 	L.SetField(conn, "read", L.NewFunction(func(L *lua.LState) int {
@@ -370,6 +415,8 @@ func registerConn(L *lua.LState, lc *luaConn, ctx context.Context, env Env) *lua
 		}
 		return 1
 	}))
+
+	registerStateMethods(L, conn, connState)
 
 	return conn
 }

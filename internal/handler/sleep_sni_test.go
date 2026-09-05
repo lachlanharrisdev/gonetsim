@@ -9,7 +9,7 @@ import (
 
 func TestLuaSleepAndSNI(t *testing.T) {
 	t.Run("sleep resets idle deadline", func(t *testing.T) {
-		h, err := NewLua("testdata/sleep.lua")
+		h, err := NewLua("testdata/sleep.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -41,7 +41,7 @@ func TestLuaSleepAndSNI(t *testing.T) {
 	})
 
 	t.Run("sleep cap", func(t *testing.T) {
-		h, err := NewLua("testdata/sleep_cap.lua")
+		h, err := NewLua("testdata/sleep_cap.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
@@ -53,7 +53,7 @@ func TestLuaSleepAndSNI(t *testing.T) {
 	})
 
 	t.Run("sni nil on plain conn", func(t *testing.T) {
-		h, err := NewLua("testdata/sni.lua")
+		h, err := NewLua("testdata/sni.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}

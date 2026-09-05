@@ -14,6 +14,8 @@ import (
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 const (
@@ -30,7 +32,13 @@ type Config struct {
 	HTTP      HTTPConfig       `koanf:"http"`
 	HTTPS     HTTPSConfig      `koanf:"https"`
 	Logging   LoggingConfig    `koanf:"logging"`
+	State     StateConfig      `koanf:"state"`
 	Listeners []ListenerConfig `koanf:"listeners"`
+}
+
+// empty TotalLimit means the state package default
+type StateConfig struct {
+	TotalLimit string `koanf:"total_limit"`
 }
 
 type GeneralConfig struct {
@@ -125,6 +133,9 @@ func Default() Config {
 			LogFormat: "text",
 			Level:     "info",
 		},
+		State: StateConfig{
+			TotalLimit: "64MiB",
+		},
 	}
 }
 
@@ -148,6 +159,12 @@ func (c Config) Validate() error {
 		// ok
 	default:
 		return fmt.Errorf("logging.level must be one of: debug, info, warn, error")
+	}
+
+	if strings.TrimSpace(c.State.TotalLimit) != "" {
+		if _, err := state.ParseSize(c.State.TotalLimit); err != nil {
+			return fmt.Errorf("state.total_limit: %w", err)
+		}
 	}
 
 	// deep listener validation happens in the listener package
