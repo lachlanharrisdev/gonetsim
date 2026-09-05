@@ -4,7 +4,10 @@
 --
 -- Limitations:
 --   no STARTTLS (use tls = true for implicit-TLS 465)
---   minimal capability list, relatively stateless
+--   minimal capability list
+--
+-- Handler state spans connections: a mail counter and per-sender memory,
+-- demonstrating handler:get/set/has.
 --
 -- Config:
 --   [[listeners]]
@@ -130,6 +133,10 @@ function handle(conn)
 		elseif cmd == "MAIL" then
 			sender = envelopeAddr(arg)
 			recipients = {}
+			if handler:has("sender:" .. sender) then
+				log:info("repeat sender: " .. sender)
+			end
+			handler:set("sender:" .. sender, "1")
 			conn:sleep(DELAY_MS)
 			conn:write("250 2.1.0 OK\r\n")
 		elseif cmd == "RCPT" then
@@ -145,7 +152,10 @@ function handle(conn)
 				msg = msg:gsub("\r\n%.\r\n$", "\r\n")  -- strip the terminator
 				msg = msg:gsub("\r\n%.%.", "\r\n.")    -- un-dot-stuff
 				capture:write("message", msg)
-				log:info(("mail from %s to %d recipient(s), %d bytes"):format(sender, #recipients, #msg))
+				local mails = tonumber(handler:get("mails")) or 0
+				mails = mails + 1
+				handler:set("mails", tostring(mails))
+				log:info(("mail #%d from %s to %d recipient(s), %d bytes"):format(mails, sender, #recipients, #msg))
 				conn:write("250 2.0.0 OK: queued\r\n")
 			end
 		elseif cmd == "AUTH" then
