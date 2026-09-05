@@ -77,11 +77,18 @@ func (h *LuaHandler) HandleTCP(ctx context.Context, conn net.Conn, env Env) erro
 	return nil
 }
 
-func (h *LuaHandler) HandleUDP(_ context.Context, data []byte, _ net.Addr, env Env) ([]byte, error) {
+func (h *LuaHandler) HandleUDP(_ context.Context, data []byte, remote net.Addr, env Env) ([]byte, error) {
 	L := h.newState(env)
 	defer L.Close()
 
-	ret, err := h.run(L, udpEntry, 1, lua.LString(data))
+	peer := L.NewTable()
+	L.SetField(peer, "addr", lua.LString(remote.String()))
+	if udp, ok := remote.(*net.UDPAddr); ok {
+		L.SetField(peer, "ip", lua.LString(udp.IP.String()))
+		L.SetField(peer, "port", lua.LNumber(udp.Port))
+	}
+
+	ret, err := h.run(L, udpEntry, 1, lua.LString(data), peer)
 	if err != nil {
 		return nil, fmt.Errorf("lua %s: %w", h.path, err)
 	}
@@ -270,6 +277,21 @@ func (lc *luaConn) HandshakeContext(ctx context.Context) error {
 	return nil
 }
 
+func (lc *luaConn) handshake(ctx context.Context) (tls.ConnectionState, bool) {
+	tc := lc.tls()
+	if tc == nil {
+		return tls.ConnectionState{}, false
+	}
+	if !tc.ConnectionState().HandshakeComplete {
+		_ = tc.HandshakeContext(ctx)
+	}
+	st := tc.ConnectionState()
+	if st.Version == 0 {
+		return tls.ConnectionState{}, false
+	}
+	return st, true
+}
+
 func (lc *luaConn) read(n int) (lua.LValue, error) {
 	buf := make([]byte, n)
 	nr, err := lc.br.Read(buf)
@@ -399,20 +421,57 @@ func registerConn(L *lua.LState, lc *luaConn, ctx context.Context, env Env, conn
 		return 1
 	}))
 
-	L.SetField(conn, "sni", L.NewFunction(func(L *lua.LState) int {
-		name := ""
-		if tc := lc.tls(); tc != nil {
-			// scripts typically call sni() before any read
-			if !tc.ConnectionState().HandshakeComplete {
-				_ = tc.HandshakeContext(ctx)
-			}
-			name = tc.ConnectionState().ServerName
-		}
-		if name != "" {
-			L.Push(lua.LString(name))
+	L.SetField(conn, "local", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LString(lc.LocalAddr().String()))
+		return 1
+	}))
+
+	L.SetField(conn, "remote_ip", L.NewFunction(func(L *lua.LState) int {
+		if tcp, ok := lc.RemoteAddr().(*net.TCPAddr); ok {
+			L.Push(lua.LString(tcp.IP.String()))
 		} else {
 			L.Push(lua.LNil)
 		}
+		return 1
+	}))
+
+	L.SetField(conn, "remote_port", L.NewFunction(func(L *lua.LState) int {
+		if tcp, ok := lc.RemoteAddr().(*net.TCPAddr); ok {
+			L.Push(lua.LNumber(tcp.Port))
+		} else {
+			L.Push(lua.LNil)
+		}
+		return 1
+	}))
+
+	L.SetField(conn, "local_port", L.NewFunction(func(L *lua.LState) int {
+		if tcp, ok := lc.LocalAddr().(*net.TCPAddr); ok {
+			L.Push(lua.LNumber(tcp.Port))
+		} else {
+			L.Push(lua.LNil)
+		}
+		return 1
+	}))
+
+	L.SetField(conn, "sni", L.NewFunction(func(L *lua.LState) int {
+		if st, ok := lc.handshake(ctx); ok && st.ServerName != "" {
+			L.Push(lua.LString(st.ServerName))
+		} else {
+			L.Push(lua.LNil)
+		}
+		return 1
+	}))
+
+	L.SetField(conn, "tls", L.NewFunction(func(L *lua.LState) int {
+		st, ok := lc.handshake(ctx)
+		if !ok {
+			L.Push(lua.LNil)
+			return 1
+		}
+		info := L.NewTable()
+		L.SetField(info, "version", lua.LString(tls.VersionName(st.Version)))
+		L.SetField(info, "cipher", lua.LString(tls.CipherSuiteName(st.CipherSuite)))
+		L.Push(info)
 		return 1
 	}))
 
