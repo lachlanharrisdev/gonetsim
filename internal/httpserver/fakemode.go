@@ -50,10 +50,6 @@ type fakeResponse struct {
 
 type fakeGenerator func(r *http.Request, m fakeMeta) fakeResponse
 
-// statusOverrideWriter forces a configured status code, but only for ordinary
-// 200 OK responses. It deliberately leaves partial content (206) and
-// not-modified (304) responses untouched so conditional/range requests still
-// behave correctly in real mode.
 type statusOverrideWriter struct {
 	http.ResponseWriter
 	status      int
@@ -83,8 +79,6 @@ func (w *statusCaptureWriter) WriteHeader(code int) {
 }
 
 func (h FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := h.Logger
-
 	m := resolveFakeMeta(r.URL.Path)
 	gen := defaultFakeRegistry.lookup(m.ext)
 	resp := gen(r, m)
@@ -93,28 +87,7 @@ func (h FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", resp.contentType)
 	}
 
-	cap := &statusCaptureWriter{ResponseWriter: w}
-	out := http.ResponseWriter(cap)
-	if h.StatusCode != 0 {
-		out = &statusOverrideWriter{ResponseWriter: cap, status: h.StatusCode}
-	}
-
-	http.ServeContent(out, r, m.name, resp.modTime, bytes.NewReader(resp.body))
-
-	status := cap.status
-	if status == 0 {
-		// ServeContent defaults to 200 if it wrote a body.
-		status = 200
-	}
-	logger.Info(
-		r.Method,
-		"src", r.RemoteAddr,
-		"to", r.URL.Path,
-		"status", status,
-		"host", r.Host,
-		"ua", r.UserAgent(),
-		"len", r.ContentLength,
-	)
+	serveContent(w, r, m.name, resp.modTime, bytes.NewReader(resp.body), h.StatusCode, h.Logger, r.ContentLength)
 }
 
 func resolveFakeMeta(urlPath string) fakeMeta {

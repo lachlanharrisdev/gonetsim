@@ -165,10 +165,10 @@ func TestRecordTypes(t *testing.T) {
 		{"SOA", "example.com.", dns.TypeSOA, checkSOA},
 		{"CAA", "example.com.", dns.TypeCAA, checkCAA},
 	}
+	client, addr, conf, teardown := queryTestsHelper(t)
+	defer teardown()
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client, addr, conf, teardown := queryTestsHelper(t)
-			defer teardown()
 			resp := exchange(t, client, addr, tc.qname, tc.qtype)
 			if len(resp.Answer) != 1 {
 				t.Fatalf("expected 1 answer, got %d", len(resp.Answer))

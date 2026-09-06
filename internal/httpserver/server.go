@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -100,4 +101,28 @@ func (s *Server) Stop(ctx context.Context) error {
 		return s.srv.Shutdown(ctx)
 	}
 	return nil
+}
+
+func serveContent(w http.ResponseWriter, r *http.Request, name string, modTime time.Time, content io.ReadSeeker, statusOverride int, logger *slog.Logger, contentLen any) {
+	cap := &statusCaptureWriter{ResponseWriter: w}
+	out := http.ResponseWriter(cap)
+	if statusOverride != 0 {
+		out = &statusOverrideWriter{ResponseWriter: cap, status: statusOverride}
+	}
+
+	http.ServeContent(out, r, name, modTime, content)
+
+	status := cap.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	logger.Info(
+		r.Method,
+		"src", r.RemoteAddr,
+		"to", r.URL.Path,
+		"status", status,
+		"host", r.Host,
+		"ua", r.UserAgent(),
+		"len", contentLen,
+	)
 }

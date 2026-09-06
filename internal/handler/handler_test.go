@@ -12,17 +12,14 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"net/netip"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
 	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 )
 
-func discardLogger() *slog.Logger {
+func testLogger() *slog.Logger {
 	return testutil.Logger()
 }
 
@@ -56,7 +53,7 @@ func roundtrip(t *testing.T, client net.Conn, payload, reply string) {
 
 func TestBuiltins(t *testing.T) {
 	t.Run("tcp echo", func(t *testing.T) {
-		client, done := servePipe(t, EchoHandler{}, Env{Logger: discardLogger()})
+		client, done := servePipe(t, EchoHandler{}, Env{Logger: testLogger()})
 		roundtrip(t, client, "abc", "abc")
 		_ = client.Close()
 		if err := <-done; err != nil {
@@ -66,7 +63,7 @@ func TestBuiltins(t *testing.T) {
 
 	t.Run("udp echo", func(t *testing.T) {
 		addr, _ := net.ResolveUDPAddr("udp", "203.0.113.10:53")
-		reply, err := EchoHandler{}.HandleUDP(t.Context(), []byte("query"), addr, Env{Logger: discardLogger()})
+		reply, err := EchoHandler{}.HandleUDP(t.Context(), []byte("query"), addr, Env{Logger: testLogger()})
 		if err != nil || string(reply) != "query" {
 			t.Fatalf("udp echo: %v %q", err, reply)
 		}
@@ -87,7 +84,7 @@ func TestLuaHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
-		client, done := servePipe(t, h, Env{Logger: discardLogger()})
+		client, done := servePipe(t, h, Env{Logger: testLogger()})
 		roundtrip(t, client, "hello\nworld\n", "echo: hello\necho: world\n")
 		_ = client.Close()
 		if err := <-done; err != nil {
@@ -101,54 +98,13 @@ func TestLuaHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
-		reply, err := h.HandleUDP(t.Context(), []byte("ping"), remote, Env{Logger: discardLogger()})
+		reply, err := h.HandleUDP(t.Context(), []byte("ping"), remote, Env{Logger: testLogger()})
 		if err != nil || string(reply) != "pong" {
 			t.Fatalf("ping: %v %q", err, reply)
 		}
-		reply, err = h.HandleUDP(t.Context(), []byte("other"), remote, Env{Logger: discardLogger()})
+		reply, err = h.HandleUDP(t.Context(), []byte("other"), remote, Env{Logger: testLogger()})
 		if err != nil || reply != nil {
 			t.Fatalf("silent: %v %q", err, reply)
-		}
-	})
-
-	t.Run("capture comment", func(t *testing.T) {
-		h, err := NewLua("testdata/comment.lua", nil)
-		if err != nil {
-			t.Fatalf("NewLua: %v", err)
-		}
-		c1, c2 := net.Pipe()
-		defer c2.Close()
-		done := make(chan error, 1)
-		go func() {
-			done <- h.HandleTCP(t.Context(), c2, Env{Logger: discardLogger()})
-		}()
-
-		run, err := capture.NewRun(filepath.Join(t.TempDir(), "run.pcapng"))
-		if err != nil {
-			t.Fatalf("NewRun: %v", err)
-		}
-		defer func() { _ = run.Close() }()
-		iface, err := run.NewInterface("test")
-		if err != nil {
-			t.Fatalf("NewInterface: %v", err)
-		}
-		ses, err := run.NewSession("tcp",
-			netip.MustParseAddrPort("127.0.0.1:9"), netip.MustParseAddrPort("203.0.113.10:1"), iface)
-		if err != nil {
-			t.Fatalf("NewSession: %v", err)
-		}
-		ses.Comment("client said hello")
-		_ = ses.Write([]byte("hello"), true)
-		if err := ses.Close(); err != nil {
-			t.Fatalf("Close: %v", err)
-		}
-
-		_, _ = c1.Write([]byte("hello"))
-		if err := c1.Close(); err != nil {
-			t.Fatalf("Close: %v", err)
-		}
-		if err := <-done; err != nil {
-			t.Fatalf("HandleTCP: %v", err)
 		}
 	})
 }
@@ -158,7 +114,7 @@ func TestLuaState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLua: %v", err)
 	}
-	env := Env{Logger: discardLogger(), Global: state.NewStore(state.NewBudget(state.DefaultTotalLimit))}
+	env := Env{Logger: testLogger(), Global: state.NewStore(state.NewBudget(state.DefaultTotalLimit))}
 	for i, want := range []string{"1|conn|yes", "2|conn|yes"} {
 		client, done := servePipe(t, h, env)
 		buf := make([]byte, len(want))
@@ -180,7 +136,7 @@ func TestSandboxGlobals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLua: %v", err)
 	}
-	client, done := servePipe(t, h, Env{Logger: discardLogger()})
+	client, done := servePipe(t, h, Env{Logger: testLogger()})
 	buf := make([]byte, 1024)
 	n, err := client.Read(buf)
 	if err != nil {

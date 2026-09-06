@@ -180,30 +180,15 @@ func registerConn(L *lua.LState, lc *luaConn, ctx context.Context, env Env, conn
 	}))
 
 	L.SetField(conn, "remote_ip", L.NewFunction(func(L *lua.LState) int {
-		if tcp, ok := lc.RemoteAddr().(*net.TCPAddr); ok {
-			L.Push(lua.LString(tcp.IP.String()))
-		} else {
-			L.Push(lua.LNil)
-		}
-		return 1
+		return pushTCPIP(L, lc.RemoteAddr())
 	}))
 
 	L.SetField(conn, "remote_port", L.NewFunction(func(L *lua.LState) int {
-		if tcp, ok := lc.RemoteAddr().(*net.TCPAddr); ok {
-			L.Push(lua.LNumber(tcp.Port))
-		} else {
-			L.Push(lua.LNil)
-		}
-		return 1
+		return pushTCPPort(L, lc.RemoteAddr())
 	}))
 
 	L.SetField(conn, "local_port", L.NewFunction(func(L *lua.LState) int {
-		if tcp, ok := lc.LocalAddr().(*net.TCPAddr); ok {
-			L.Push(lua.LNumber(tcp.Port))
-		} else {
-			L.Push(lua.LNil)
-		}
-		return 1
+		return pushTCPPort(L, lc.LocalAddr())
 	}))
 
 	L.SetField(conn, "sni", L.NewFunction(func(L *lua.LState) int {
@@ -239,5 +224,23 @@ func pushResult(L *lua.LState, v lua.LValue, err error) int {
 		return 0
 	}
 	L.Push(v)
+	return 1
+}
+
+func pushTCPIP(L *lua.LState, addr net.Addr) int {
+	if tcp, ok := addr.(*net.TCPAddr); ok {
+		L.Push(lua.LString(tcp.IP.String()))
+	} else {
+		L.Push(lua.LNil)
+	}
+	return 1
+}
+
+func pushTCPPort(L *lua.LState, addr net.Addr) int {
+	if tcp, ok := addr.(*net.TCPAddr); ok {
+		L.Push(lua.LNumber(tcp.Port))
+	} else {
+		L.Push(lua.LNil)
+	}
 	return 1
 }

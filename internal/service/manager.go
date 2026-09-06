@@ -32,10 +32,6 @@ func (m *Manager) RunAll(ctx context.Context) error {
 	return runServices(ctx, m.logger, m.shutdownTimeout, m.services)
 }
 
-func (m *Manager) RunSingleService(ctx context.Context, s Service) error {
-	return runServices(ctx, m.logger, m.shutdownTimeout, []Service{s})
-}
-
 func runServices(ctx context.Context, logger *slog.Logger, shutdownTimeout time.Duration, services []Service) error {
 	if len(services) == 0 {
 		return nil

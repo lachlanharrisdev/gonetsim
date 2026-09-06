@@ -11,7 +11,8 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/" # Location of package manifests
     schedule:
-      interval: "daily"
+      interval: "weekly"
       time: "15:00"
+      day: "monday"
       timezone: "Australia/Sydney"
     labels: ["scope: deps", "priority: medium"]

@@ -107,6 +107,9 @@ func (h *LuaHandler) run(L *lua.LState, entry string, nret int, args ...lua.LVal
 	if err := L.CallByParam(lua.P{Fn: fn, NRet: nret, Protect: true}, args...); err != nil {
 		return nil, err
 	}
+	if nret == 0 {
+		return nil, nil
+	}
 	vals := make([]lua.LValue, nret)
 	for i := range vals {
 		vals[i] = L.Get(-nret + i)

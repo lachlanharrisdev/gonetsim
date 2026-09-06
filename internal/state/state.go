@@ -48,9 +48,7 @@ func (s *Store) Get(key string) (string, bool) {
 }
 
 func (s *Store) Has(key string) bool {
-	s.budget.mu.RLock()
-	defer s.budget.mu.RUnlock()
-	_, ok := s.data[key]
+	_, ok := s.Get(key)
 	return ok
 }
 

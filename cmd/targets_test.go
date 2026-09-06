@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
 	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
@@ -242,4 +245,23 @@ func testResolve(t *testing.T, cfg *appconfig.Config, args []string, opts runOpt
 		t.Fatalf("resolveTargets(%v): %v", args, err)
 	}
 	return resolved
+}
+
+func TestCheckRunDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+
+	if err := checkRunDir(); err != nil {
+		t.Fatalf("checkRunDir: %v", err)
+	}
+	runs, err := capture.DefaultRunsDir()
+	if err != nil {
+		t.Fatalf("DefaultRunsDir: %v", err)
+	}
+	if st, err := os.Stat(runs); err != nil || !st.IsDir() {
+		t.Fatalf("expected runs dir to exist: %v", err)
+	}
+	if filepath.Dir(runs) != filepath.Join(dir, "gonetsim") {
+		t.Fatalf("runs dir = %q, want it under %q", runs, dir)
+	}
 }

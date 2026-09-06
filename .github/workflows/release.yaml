@@ -22,14 +22,9 @@ jobs:
       with:
         fetch-depth: 0
     - name: Install Go
-      id: setup-go
       uses: actions/setup-go@v7
       with:
         go-version-file: "go.mod"
-    - name: Download Go modules
-      shell: bash
-      if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
-      run: go mod download
     - name: Install ko
       run: go install github.com/google/ko@v0.18.1
     - name: Log in to GHCR

@@ -89,10 +89,7 @@ func (lc *luaConn) readLine() (lua.LValue, error) {
 			continue
 		}
 		if errors.Is(err, io.EOF) {
-			if sb.Len() > 0 {
-				return lua.LString(sb.String()), nil
-			}
-			return lua.LNil, nil
+			return eofValue(sb.String()), nil
 		}
 		return nil, err
 	}
@@ -112,12 +109,16 @@ func (lc *luaConn) readUntil(delim []byte) (lua.LValue, error) {
 		buf = append(buf, tmp[:n]...)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				if len(buf) > 0 {
-					return lua.LString(buf), nil
-				}
-				return lua.LNil, nil
+				return eofValue(string(buf)), nil
 			}
 			return nil, err
 		}
 	}
+}
+
+func eofValue(s string) lua.LValue {
+	if s != "" {
+		return lua.LString(s)
+	}
+	return lua.LNil
 }

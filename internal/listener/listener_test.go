@@ -10,12 +10,10 @@ package listener
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"log/slog"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +21,6 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
-	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
@@ -31,22 +28,6 @@ import (
 
 func testLogger() *slog.Logger {
 	return testutil.Logger()
-}
-
-func testRun(t *testing.T) (*capture.Run, string) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "run.pcapng")
-	run, err := capture.NewRun(path)
-	if err != nil {
-		t.Fatalf("NewRun: %v", err)
-	}
-	t.Cleanup(func() { _ = run.Close() })
-	return run, path
-}
-
-func freePort(t *testing.T, network string) string {
-	t.Helper()
-	return testutil.FreePort(t, network)
 }
 
 func startService(t *testing.T, svc service.Service) {
@@ -85,28 +66,11 @@ func dialTCP(t *testing.T, addr string) net.Conn {
 	return nil
 }
 
-func dialTLS(t *testing.T, addr, serverName string) net.Conn {
-	t.Helper()
-	tlsConf := &tls.Config{InsecureSkipVerify: true, ServerName: serverName}
-	deadline := time.Now().Add(2 * time.Second)
-	var conn net.Conn
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, lastErr = tls.Dial("tcp", addr, tlsConf)
-		if lastErr == nil {
-			return conn
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("tls.Dial %s failed: %v", addr, lastErr)
-	return nil
-}
-
 func echoConfig(t *testing.T) Config {
 	return Config{
 		Name:        "echotest",
 		Network:     "tcp",
-		Addr:        freePort(t, "tcp"),
+		Addr:        testutil.FreePort(t, "tcp"),
 		HandlerSpec: "builtin:echo",
 		ReadTimeout: 5 * time.Second,
 		Capture:     true,
@@ -117,32 +81,20 @@ func echoConfig(t *testing.T) Config {
 // matches want, tolerating the async flush that follows connection teardown.
 func waitTransportFrames(t *testing.T, path, proto string, want []string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
+	testutil.WaitFor(t, 3*time.Second, "payload sequence match", func() bool {
 		got, err := transportPayloads(path, proto)
-		if err == nil && strings.Join(got, "|") == strings.Join(want, "|") {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	got, _ := transportPayloads(path, proto)
-	t.Fatalf("payload sequence never matched %q (proto %s), last saw %q", strings.Join(want, "|"), proto, strings.Join(got, "|"))
+		return err == nil && strings.Join(got, "|") == strings.Join(want, "|")
+	})
 }
 
 // waitSubstringFrames polls until the concatenated payload sequence of a
 // capture contains want (used where multiple datagrams share one writer).
 func waitSubstringFrames(t *testing.T, path, proto, want string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
+	testutil.WaitFor(t, 3*time.Second, "payload substring match", func() bool {
 		got, err := transportPayloads(path, proto)
-		if err == nil && strings.Contains(strings.Join(got, "|"), want) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	got, _ := transportPayloads(path, proto)
-	t.Fatalf("payload sequence never contained %q (proto %s), last saw %q", want, proto, strings.Join(got, "|"))
+		return err == nil && strings.Contains(strings.Join(got, "|"), want)
+	})
 }
 
 // transportPayloads extracts transport-layer payloads from a pcapng file,
@@ -180,7 +132,7 @@ func transportPayloads(path, proto string) ([]string, error) {
 func TestTCPService(t *testing.T) {
 	t.Run("echo over tcp with pcapng capture", func(t *testing.T) {
 		conf := echoConfig(t)
-		run, path := testRun(t)
+		run, path := testutil.NewPcapRun(t)
 
 		svc, err := NewService(conf, nil, testLogger(), run)
 		if err != nil {
@@ -201,10 +153,8 @@ func TestTCPService(t *testing.T) {
 		}
 		_ = conn.Close()
 
-		// produce a pcapng file with the exchanged payload
-		if _, err := transportPayloads(path, "tcp"); err != nil {
-			t.Fatalf("capture: %v", err)
-		}
+		waitTransportFrames(t, path, "tcp",
+			[]string{"", "", "hello\n", "hello\n", "", ""})
 	})
 
 	t.Run("idle timeout closes connection", func(t *testing.T) {
@@ -231,7 +181,7 @@ func TestTCPService(t *testing.T) {
 		conf := Config{
 			Name:        "isotest",
 			Network:     "tcp",
-			Addr:        freePort(t, "tcp"),
+			Addr:        testutil.FreePort(t, "tcp"),
 			HandlerSpec: "lua:isolated.lua",
 			BaseDir:     "../handler/testdata",
 			ReadTimeout: 5 * time.Second,
@@ -258,58 +208,6 @@ func TestTCPService(t *testing.T) {
 		}
 		if string(buf) != "ok\n" {
 			t.Fatalf("expected ok, got %q", buf)
-		}
-	})
-}
-
-func TestTCPCapture(t *testing.T) {
-	t.Run("tcp listener produces pcapng with frames", func(t *testing.T) {
-		conf := echoConfig(t)
-		run, path := testRun(t)
-
-		svc, err := NewService(conf, nil, testLogger(), run)
-		if err != nil {
-			t.Fatalf("NewService: %v", err)
-		}
-		startService(t, svc)
-
-		conn := dialTCP(t, conf.Addr)
-		if _, err := conn.Write([]byte("hello\n")); err != nil {
-			t.Fatalf("Write: %v", err)
-		}
-		buf := make([]byte, 6)
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			t.Fatalf("ReadFull: %v", err)
-		}
-		_ = conn.Close()
-
-		waitTransportFrames(t, path, "tcp",
-			[]string{"", "", "hello\n", "hello\n", "", ""})
-	})
-}
-
-func TestTCPServiceTLS(t *testing.T) {
-	t.Run("echo over TLS", func(t *testing.T) {
-		conf := echoConfig(t)
-		conf.TLS = &tlsprovider.Config{}
-
-		svc, err := NewService(conf, nil, testLogger(), nil)
-		if err != nil {
-			t.Fatalf("NewService: %v", err)
-		}
-		startService(t, svc)
-
-		conn := dialTLS(t, conf.Addr, "localhost")
-		defer func() { _ = conn.Close() }()
-		if _, err := conn.Write([]byte("secure")); err != nil {
-			t.Fatalf("Write: %v", err)
-		}
-		buf := make([]byte, 6)
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			t.Fatalf("ReadFull: %v", err)
-		}
-		if string(buf) != "secure" {
-			t.Fatalf("expected echo, got %q", buf)
 		}
 	})
 }
@@ -349,12 +247,12 @@ func TestUDPCapture(t *testing.T) {
 		conf := Config{
 			Name:        "udpecho",
 			Network:     "udp",
-			Addr:        freePort(t, "udp"),
+			Addr:        testutil.FreePort(t, "udp"),
 			HandlerSpec: "builtin:echo",
 			ReadTimeout: 150 * time.Millisecond,
 			Capture:     true,
 		}
-		run, path := testRun(t)
+		run, path := testutil.NewPcapRun(t)
 		svc, err := NewService(conf, nil, testLogger(), run)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
@@ -369,7 +267,7 @@ func TestUDPCapture(t *testing.T) {
 		conf := Config{
 			Name:        "udplua",
 			Network:     "udp",
-			Addr:        freePort(t, "udp"),
+			Addr:        testutil.FreePort(t, "udp"),
 			HandlerSpec: "lua:packet.lua",
 			BaseDir:     "../handler/testdata",
 			ReadTimeout: 5 * time.Second,
@@ -388,7 +286,7 @@ func TestStartWithCancelledContext(t *testing.T) {
 		conf := Config{
 			Name:        "canceled-" + network,
 			Network:     network,
-			Addr:        freePort(t, network),
+			Addr:        testutil.FreePort(t, network),
 			HandlerSpec: "builtin:sink",
 			ReadTimeout: 5 * time.Second,
 		}

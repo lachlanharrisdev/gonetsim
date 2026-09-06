@@ -22,7 +22,6 @@ type tcpService struct {
 	log     *slog.Logger
 	run     *capture.Run
 	global  *state.Store
-	idle    time.Duration
 
 	mu    sync.Mutex
 	ln    net.Listener

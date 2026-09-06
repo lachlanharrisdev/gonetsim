@@ -22,8 +22,11 @@ type Session struct {
 	local  netip.AddrPort
 	remote netip.AddrPort
 
+	// the pcapng holds no real handshake, so thefirst Write emits SYN, SYN-ACK,
+	// then data with synthetic seq/ack numbers tracked in clientSeq/serverSeq
+	// Close emits FIN/FIN-ACK
 	synSent bool
-	pending string
+	pending string // comment attached to the next emitted frame
 
 	clientSeq uint32
 	serverSeq uint32
@@ -201,26 +204,28 @@ func (s *Session) build(data []byte, src, dst netip.AddrPort, kind transportKind
 	switch kind {
 	case isTCP:
 		tcp := &layers.TCP{SrcPort: layers.TCPPort(src.Port()), DstPort: layers.TCPPort(dst.Port())}
-		network = tcpIPLayer(src, dst, layers.IPProtocolTCP, tcp)
+		network = ipLayer(src, dst, layers.IPProtocolTCP, tcp)
 		transport = tcp
 	default:
 		udp := &layers.UDP{SrcPort: layers.UDPPort(src.Port()), DstPort: layers.UDPPort(dst.Port())}
-		network = udpIPLayer(src, dst, udp)
+		network = ipLayer(src, dst, layers.IPProtocolUDP, udp)
 		transport = udp
 	}
 	return s.serialize(data, src, network, transport)
 }
 
 func (s *Session) buildTCPData(data []byte, fromClient bool, seq, ack uint32) []byte {
-	src, dst := s.endpoints(fromClient)
-	tcp := newTCPLayer(src, dst, seq, ack, false, true, false, len(data) > 0)
-	return s.buildWithTCP(data, src, dst, tcp)
+	return s.buildTCP(data, fromClient, false, true, false, len(data) > 0, seq, ack)
 }
 
 func (s *Session) buildTCPControl(fromClient, syn, ackFlag, fin bool, seq, ackNum uint32) []byte {
+	return s.buildTCP(nil, fromClient, syn, ackFlag, fin, false, seq, ackNum)
+}
+
+func (s *Session) buildTCP(data []byte, fromClient, syn, ackFlag, fin, psh bool, seq, ack uint32) []byte {
 	src, dst := s.endpoints(fromClient)
-	tcp := newTCPLayer(src, dst, seq, ackNum, syn, ackFlag, fin, false)
-	return s.buildWithTCP(nil, src, dst, tcp)
+	tcp := newTCPLayer(src, dst, seq, ack, syn, ackFlag, fin, psh)
+	return s.serialize(data, src, ipLayer(src, dst, layers.IPProtocolTCP, tcp), tcp)
 }
 
 func newTCPLayer(src, dst netip.AddrPort, seq, ack uint32, syn, ackFlag, fin, psh bool) *layers.TCP {
@@ -237,29 +242,22 @@ func newTCPLayer(src, dst netip.AddrPort, seq, ack uint32, syn, ackFlag, fin, ps
 	}
 }
 
-func (s *Session) buildWithTCP(data []byte, src, dst netip.AddrPort, tcp *layers.TCP) []byte {
-	return s.serialize(data, src, tcpIPLayer(src, dst, layers.IPProtocolTCP, tcp), tcp)
-}
-
-func tcpIPLayer(src, dst netip.AddrPort, proto layers.IPProtocol, tcp *layers.TCP) gopacket.SerializableLayer {
+func ipLayer(src, dst netip.AddrPort, proto layers.IPProtocol, transport gopacket.SerializableLayer) gopacket.SerializableLayer {
+	setChecksum := func(ip gopacket.NetworkLayer) {
+		switch t := transport.(type) {
+		case *layers.TCP:
+			_ = t.SetNetworkLayerForChecksum(ip)
+		case *layers.UDP:
+			_ = t.SetNetworkLayerForChecksum(ip)
+		}
+	}
 	if src.Addr().Is4() {
 		ip := &layers.IPv4{Version: 4, TTL: 64, Protocol: proto, SrcIP: src.Addr().AsSlice(), DstIP: dst.Addr().AsSlice()}
-		_ = tcp.SetNetworkLayerForChecksum(ip)
+		setChecksum(ip)
 		return ip
 	}
 	ip := &layers.IPv6{Version: 6, HopLimit: 64, NextHeader: proto, SrcIP: src.Addr().AsSlice(), DstIP: dst.Addr().AsSlice()}
-	_ = tcp.SetNetworkLayerForChecksum(ip)
-	return ip
-}
-
-func udpIPLayer(src, dst netip.AddrPort, udp *layers.UDP) gopacket.SerializableLayer {
-	if src.Addr().Is4() {
-		ip := &layers.IPv4{Version: 4, TTL: 64, Protocol: layers.IPProtocolUDP, SrcIP: src.Addr().AsSlice(), DstIP: dst.Addr().AsSlice()}
-		_ = udp.SetNetworkLayerForChecksum(ip)
-		return ip
-	}
-	ip := &layers.IPv6{Version: 6, HopLimit: 64, NextHeader: layers.IPProtocolUDP, SrcIP: src.Addr().AsSlice(), DstIP: dst.Addr().AsSlice()}
-	_ = udp.SetNetworkLayerForChecksum(ip)
+	setChecksum(ip)
 	return ip
 }
 

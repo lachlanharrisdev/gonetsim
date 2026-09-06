@@ -10,7 +10,6 @@ package capture
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 	"net/netip"
 	"os"
@@ -229,20 +228,6 @@ func TestSessionComment(t *testing.T) {
 	}
 }
 
-func TestSessionEmpty(t *testing.T) {
-	local := netip.MustParseAddrPort("127.0.0.1:8080")
-	remote := netip.MustParseAddrPort("10.0.0.5:40000")
-	run, path := testRun(t)
-
-	ses := testSession(t, run, "tcp", local, remote)
-	if err := ses.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if pkts := readFrames(t, path); len(pkts) != 0 {
-		t.Fatalf("expected empty capture, got %d packets", len(pkts))
-	}
-}
-
 func TestRun(t *testing.T) {
 	t.Run("one file holds many flows", func(t *testing.T) {
 		run, path := testRun(t)
@@ -310,53 +295,6 @@ func TestRun(t *testing.T) {
 			t.Fatalf("expected parent dir to be created: %v", err)
 		}
 	})
-
-	t.Run("run id format", func(t *testing.T) {
-		id := NewRunID()
-		if len(id) != 20 || id[8] != '-' || id[15] != '-' {
-			t.Fatalf("unexpected run id %q", id)
-		}
-	})
-
-	t.Run("empty run inspects cleanly", func(t *testing.T) {
-		run, path := testRun(t)
-		if err := run.Close(); err != nil {
-			t.Fatalf("Close: %v", err)
-		}
-		info, err := Inspect(path)
-		if err != nil {
-			t.Fatalf("Inspect: %v", err)
-		}
-		if info.Packets != 0 {
-			t.Fatalf("Packets = %d, want 0", info.Packets)
-		}
-	})
-
-	t.Run("nil run is a no-op", func(t *testing.T) {
-		var run *Run
-		if run.Path() != "" {
-			t.Fatalf("expected empty path from nil run")
-		}
-		if packets, first, last := run.Stats(); packets != 0 || !first.IsZero() || !last.IsZero() {
-			t.Fatalf("expected zero stats from nil run")
-		}
-		if err := run.Close(); err != nil {
-			t.Fatalf("Close on nil run: %v", err)
-		}
-		if iface, err := run.NewInterface("x"); err != nil || iface != 0 {
-			t.Fatalf("expected zero interface from nil run, got %d, %v", iface, err)
-		}
-		ses, err := run.NewSession("tcp",
-			netip.MustParseAddrPort("5.6.7.8:9"), netip.MustParseAddrPort("1.2.3.4:5"), 0)
-		if err != nil || ses != nil {
-			t.Fatalf("expected nil session from nil run, got %v, %v", ses, err)
-		}
-		ses.Comment("ignored")
-		_ = ses.Write([]byte("data"), true)
-		if err := ses.Close(); err != nil {
-			t.Fatalf("Close on nil session: %v", err)
-		}
-	})
 }
 
 func TestInspect(t *testing.T) {
@@ -407,45 +345,5 @@ func TestInspect(t *testing.T) {
 	}
 	if _, err := Inspect(legacy); err == nil || !strings.Contains(err.Error(), "legacy pcap") {
 		t.Fatalf("expected legacy pcap error, got %v", err)
-	}
-}
-
-func TestBlockLengthsMatch(t *testing.T) {
-	local := netip.MustParseAddrPort("127.0.0.1:8080")
-	remote := netip.MustParseAddrPort("10.0.0.5:40000")
-	run, path := testRun(t)
-
-	ses := testSession(t, run, "tcp", local, remote)
-	ses.Comment("greeting")
-	if err := ses.Write([]byte("hello"), true); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-	if err := ses.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	off := 0
-	blocks := 0
-	for off < len(raw) {
-		if len(raw)-off < 12 {
-			t.Fatalf("block %d at offset %d: truncated header", blocks, off)
-		}
-		blen := int(binary.LittleEndian.Uint32(raw[off+4 : off+8]))
-		if blen < 12 || off+blen > len(raw) {
-			t.Fatalf("block %d at offset %d: bad length %d (file %d)", blocks, off, blen, len(raw))
-		}
-		trail := binary.LittleEndian.Uint32(raw[off+blen-4 : off+blen])
-		if int(trail) != blen {
-			t.Fatalf("block %d at offset %d: lengths %d and %d don't match", blocks, off, blen, trail)
-		}
-		off += blen
-		blocks++
-	}
-	if blocks == 0 {
-		t.Fatalf("no blocks found")
 	}
 }

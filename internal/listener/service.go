@@ -29,5 +29,5 @@ func NewService(conf Config, global *state.Store, logger *slog.Logger, run *capt
 	if conf.Network == "udp" {
 		return &udpService{conf: conf, handler: h, log: log, run: run, global: global}, nil
 	}
-	return &tcpService{conf: conf, handler: h, log: log, run: run, global: global, idle: conf.ReadTimeout}, nil
+	return &tcpService{conf: conf, handler: h, log: log, run: run, global: global}, nil
 }
