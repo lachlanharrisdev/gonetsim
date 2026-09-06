@@ -45,7 +45,9 @@ func inspectPcap(out io.Writer, target string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "%s\n", summarizePcap(target, info))
+	if _, err := fmt.Fprintf(out, "%s\n", summarizePcap(target, info)); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	return nil
 }
 
@@ -89,14 +91,20 @@ func inspectPcapDir(out io.Writer, dir string) error {
 	for _, f := range files {
 		info, err := capture.Inspect(f)
 		if err != nil {
-			fmt.Fprintf(out, "%s: ERROR %v\n", f, err)
+			if _, werr := fmt.Fprintf(out, "%s: ERROR %v\n", f, err); werr != nil {
+				return fmt.Errorf("write output: %w", werr)
+			}
 			failed++
 			continue
 		}
-		fmt.Fprintf(out, "%s\n", summarizePcap(f, info))
+		if _, err := fmt.Fprintf(out, "%s\n", summarizePcap(f, info)); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
 		total += info.Packets
 	}
-	fmt.Fprintf(out, "total: files=%d packets=%d\n", len(files), total)
+	if _, err := fmt.Fprintf(out, "total: files=%d packets=%d\n", len(files), total); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
 	if failed > 0 {
 		return fmt.Errorf("%d of %d files could not be read", failed, len(files))
 	}

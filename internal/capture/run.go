@@ -31,6 +31,11 @@ func NewRunID() string {
 }
 
 func DefaultRunsDir() (string, error) {
+	// XDG_DATA_HOME is honored on all platforms so tests can redirect the
+	// runs directory via t.Setenv (os.UserCacheDir ignores it on Windows).
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "gonetsim", "runs"), nil
+	}
 	var base string
 	switch runtime.GOOS {
 	case "windows":
@@ -46,15 +51,11 @@ func DefaultRunsDir() (string, error) {
 		}
 		base = filepath.Join(home, "Library", "Application Support")
 	default:
-		if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-			base = xdg
-		} else {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", err
-			}
-			base = filepath.Join(home, ".local", "share")
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
 		}
+		base = filepath.Join(home, ".local", "share")
 	}
 	return filepath.Join(base, "gonetsim", "runs"), nil
 }

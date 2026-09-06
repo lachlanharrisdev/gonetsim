@@ -50,7 +50,7 @@ func Inspect(path string) (FileInfo, error) {
 	if err != nil {
 		return FileInfo{}, fmt.Errorf("open %q: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var magic [4]byte
 	if _, err := io.ReadFull(f, magic[:]); err != nil {

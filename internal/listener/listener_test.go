@@ -104,7 +104,7 @@ func transportPayloads(path, proto string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	r, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions)
 	if err != nil {
 		return nil, err

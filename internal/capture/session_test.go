@@ -59,7 +59,7 @@ func readFrames(t *testing.T, path string) []gopacket.Packet {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	r, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions)
 	if err != nil {
 		t.Fatalf("NewNgReader: %v", err)
