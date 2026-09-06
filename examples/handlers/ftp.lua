@@ -22,7 +22,7 @@ function handle(conn)
         line = line:gsub("%s+$", "")
 
         if line ~= "" then
-            capture:write("ftp", line)
+            capture:comment("ftp: " .. line)
 
             local cmd = line:match("^(%S+)")
             local arg = line:match("^%S+%s+(.+)$")

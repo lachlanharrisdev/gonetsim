@@ -100,7 +100,7 @@ local function doAuth(conn, arg)
 		-- PLAIN payload is authzid NUL authcid NUL passwd
 		user, pass = parts[2] or "?", parts[3] or "?"
 	end
-	capture:write("auth", user .. " / " .. pass)
+	capture:comment("auth: " .. user .. " / " .. pass)
 	log:info("AUTH " .. mech .. " captured")
 	conn:write("235 2.7.0 Authentication successful\r\n")
 end
@@ -116,7 +116,7 @@ function handle(conn)
 		line = line:gsub("%s+$", "")
 
 		if line ~= "" then
-			capture:write("smtp", line)
+			capture:comment("smtp: " .. line)
 		end
 
 		local cmd = line:match("^(%a+)") or ""
@@ -151,7 +151,7 @@ function handle(conn)
 				if not msg then break end
 				msg = msg:gsub("\r\n%.\r\n$", "\r\n")  -- strip the terminator
 				msg = msg:gsub("\r\n%.%.", "\r\n.")    -- un-dot-stuff
-				capture:write("message", msg)
+				capture:comment("message: " .. msg)
 				local mails = tonumber(handler:get("mails")) or 0
 				mails = mails + 1
 				handler:set("mails", tostring(mails))

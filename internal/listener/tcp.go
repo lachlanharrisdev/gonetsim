@@ -10,52 +10,72 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 type tcpService struct {
 	conf    Config
-	handler handler.Handler
+	handler handler.TCPHandler
 	log     *slog.Logger
-	store   *captureStore
+	run     *capture.Run
 	global  *state.Store
+	idle    time.Duration
 
+	mu    sync.Mutex
+	ln    net.Listener
 	conns connSet
 	wg    sync.WaitGroup
 }
 
 func (s *tcpService) Name() string { return s.conf.Name }
 
-func (s *tcpService) Stop(_ context.Context) error { return nil }
+func (s *tcpService) Stop(_ context.Context) error {
+	s.mu.Lock()
+	ln := s.ln
+	s.mu.Unlock()
+	if ln != nil {
+		_ = ln.Close()
+	}
+	s.conns.closeAll()
+	return nil
+}
 
 func (s *tcpService) Start(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.conf.Addr)
+	var tlsConf *tls.Config
+	if s.conf.TLS != nil {
+		var err error
+		tlsConf, err = s.conf.TLS.TLSConfig()
+		if err != nil {
+			return err
+		}
+	}
+	iface, err := s.run.NewInterface("gonetsim " + s.conf.Name + " tcp")
+	if err != nil {
+		return err
+	}
+	ln, err := netx.ListenTCP(s.conf.Addr, s.run, iface, tlsConf)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = ln.Close() }()
 
-	if s.conf.TLS != nil {
-		tlsConf, err := s.conf.TLS.TLSConfig()
-		if err != nil {
-			return err
-		}
-		ln = tls.NewListener(ln, tlsConf)
-	}
-
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = ln.Close()
-		case <-done:
-		}
+	s.mu.Lock()
+	s.ln = ln
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.ln = nil
+		s.mu.Unlock()
 	}()
 
+	done := netx.CloseOnCancel(ctx, ln)
+	defer done()
+
 	s.log.Info("listening", "on", s.conf.Addr, "handler", s.conf.HandlerSpec)
-	if err := s.accept(ctx, ln); err != nil && !errors.Is(err, net.ErrClosed) && ctx.Err() == nil {
+	if err := s.accept(ctx, ln); err != nil && !netx.IsExpectedClose(err, ctx) {
 		return err
 	}
 
@@ -83,25 +103,22 @@ func (s *tcpService) accept(ctx context.Context, ln net.Listener) error {
 func (s *tcpService) handleConn(ctx context.Context, conn net.Conn) {
 	defer func() { _ = conn.Close() }()
 
-	remote := conn.RemoteAddr().String()
-	defer s.store.release(remote)
-
-	w, err := s.store.writer(remote)
-	if err != nil {
-		s.log.Warn("capture unavailable", "remote", remote, "err", err)
+	var env *capture.Session
+	if cc, ok := conn.(*capture.Conn); ok {
+		env = cc.Session()
 	}
 	conn = newIdleConn(conn, s.conf.ReadTimeout)
 
-	env := handler.Env{Logger: s.log, Capture: w, IdleTimeout: s.conf.ReadTimeout, Global: s.global}
-	err = s.handler.HandleTCP(ctx, conn, env)
+	henv := handler.Env{Logger: s.log, Capture: env, IdleTimeout: s.conf.ReadTimeout, Global: s.global}
+	err := s.handler.HandleTCP(ctx, conn, henv)
 	switch {
 	case err == nil,
 		errors.Is(err, net.ErrClosed),
 		errors.Is(err, os.ErrDeadlineExceeded),
 		errors.Is(err, context.Canceled):
-		s.log.Debug("connection closed", "remote", remote)
+		s.log.Debug("connection closed", "remote", conn.RemoteAddr().String())
 	default:
-		s.log.Info("connection handler error", "remote", remote, "err", err)
+		s.log.Info("connection handler error", "remote", conn.RemoteAddr().String(), "err", err)
 	}
 }
 

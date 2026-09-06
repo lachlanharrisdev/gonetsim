@@ -2,14 +2,11 @@ package dnsserver
 
 import (
 	"errors"
-	"log/slog"
 	"net"
 	"net/netip"
-	"strings"
+	"time"
 
-	"github.com/miekg/dns"
-
-	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 )
 
 const AutoIPv4 = "auto"
@@ -36,20 +33,6 @@ func AutoSinkholeIPv4() netip.Addr {
 	return netip.MustParseAddr("127.0.0.1")
 }
 
-func (s *Server) Name() string {
-	return "DNS"
-}
-
-type Server struct {
-	conf Config
-	srvs []*dns.Server
-	log  *slog.Logger
-}
-
-func NewService(conf Config, logger *slog.Logger) service.Service {
-	return &Server{conf: conf, log: service.NewPrefixedLogger(logger, "DNS")}
-}
-
 type Config struct {
 	Addr string
 	Net  string
@@ -60,21 +43,18 @@ type Config struct {
 	SinkholeTXT    string
 	TTL            uint32
 	Compress       bool
+	Capture        bool
 }
+
+// how long to keep a UDP capture writer open after its lastdatagram
+const flowIdle = 5 * time.Minute
 
 func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("listen addr is required")
 	}
-	if c.Net == "" {
-		return errors.New("network is required")
-	}
-	net := strings.ToLower(strings.TrimSpace(c.Net))
-	switch net {
-	case "udp", "tcp", "both":
-		// all good my boy
-	default:
-		return errors.New("network must be one of: udp, tcp, both")
+	if err := netx.ValidateNetwork(c.Net, "udp", "tcp", "both"); err != nil {
+		return err
 	}
 	if !c.SinkholeIPv4.IsValid() {
 		return errors.New("sinkhole ipv4 is required")

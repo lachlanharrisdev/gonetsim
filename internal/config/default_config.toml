@@ -36,6 +36,9 @@ txt = "TXT record response from GoNetSim"
 ttl = 60
 # Enable DNS message compression
 compress = false
+# Save every query/response flow to the run capture file (udp and/or tcp,
+# matching the configured network).
+capture = true
 
 [http]
 enabled = true
@@ -46,6 +49,9 @@ status = 200
 # directory specified in root_dir (required when mode = "real")
 mode = "fake"
 root_dir = ""
+# Save every connection to the run capture file.
+# Inspect it with `gonetsim pcap <file>`.
+capture = true
 
 [https]
 enabled = true
@@ -56,6 +62,9 @@ status = 200
 # directory specified in root_dir (required when mode = "real")
 mode = "fake"
 root_dir = ""
+# Save every connection to the run capture file.
+# Note: captures hold TLS ciphertext, not plaintext.
+capture = true
 
 [logging]
 # Log output format: "text" or "json".
@@ -94,7 +103,7 @@ total_limit = "64MiB"
 # tls = false
 # tls_cert = ""
 # tls_key = ""
-# # Write everything a client sends to the artifacts directory.
+# # Write everything a client sends to the run capture file.
 # capture = true
 
 # SMTP-style mail sink, served by the example Lua handler:

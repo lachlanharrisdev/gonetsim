@@ -1,8 +1,10 @@
-// --------
+////----------------------------------------------------------------------------
 // NOTICE: to save development time, test files (including this) have been
 // generated with LLMs. The author(s) do not claim credit for these tests
 // and exist purely for maximising code quality and reliability
-// --------
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
 
 package httpserver
 
@@ -10,7 +12,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
@@ -32,7 +34,7 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil, logger)
 	if err != nil {
 		// failed to create server with error
@@ -99,7 +101,7 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil, logger)
 	if err != nil {
 		// failed to create https server with error
@@ -211,7 +213,7 @@ func startRealServer(t *testing.T, rootDir string, statusCode int) (*http.Server
 		t.Fatalf("listen: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{
 		Addr:       "127.0.0.1:0",
 		Mode:       "real",
@@ -444,110 +446,49 @@ func TestRealHandler_ConditionalRequestNotOverridden(t *testing.T) {
 
 // --- security tests ---
 
-func TestRealHandler_DirectoryTraversalBlocked(t *testing.T) {
-	// Write a sentinel file one level above the root dir.
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+func TestRealHandler_TraversalBlocked(t *testing.T) {
+	paths := []struct {
+		name string
+		path string
+	}{
+		{"classic", "/../secret.txt"},
+		{"encoded", "/%2e%2e/secret.txt"},
+		{"middle", "/a/../secret.txt"},
+		{"raw", "/../../secret.txt"},
 	}
+	for _, tc := range paths {
+		t.Run(tc.name, func(t *testing.T) {
+			// Write a sentinel file one level above the root dir.
+			parent := t.TempDir()
+			secret := filepath.Join(parent, "secret.txt")
+			if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
 
-	// The server root is a subdirectory; secret.txt is outside it.
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
+			// The server root is a subdirectory; secret.txt is outside it.
+			root := filepath.Join(parent, "www")
+			if err := os.MkdirAll(root, 0o755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
 
-	_, base := startRealServer(t, root, 0)
+			_, base := startRealServer(t, root, 0)
 
-	// Classic traversal attempt
-	resp := mustGet(t, http.DefaultClient, base+"/../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
+			resp := mustGet(t, http.DefaultClient, base+tc.path)
+			defer resp.Body.Close() //nolint:errcheck
 
-	// Must not serve the file — 404 or 400 are both acceptable
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_EncodedTraversalBlocked(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// URL-encoded traversal: %2e%2e = ".."
-	// http.DefaultClient will usually normalise this, but worth having
-	resp := mustGet(t, http.DefaultClient, base+"/%2e%2e/secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("encoded traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_MiddlePathTraversalBlocked(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// .. in the middle of the path must still be contained within root.
-	resp := mustGet(t, http.DefaultClient, base+"/a/../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("middle traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_PlainTraversalPath(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// Raw .. components that survive URL parsing.
-	resp := mustGet(t, http.DefaultClient, base+"/../../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("raw traversal succeeded — got 200 with body: %q", string(body))
+			// Must not serve the file — 404 or 400 are both acceptable
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("traversal %q succeeded — got 200 with body: %q", tc.path, string(body))
+			}
+		})
 	}
 }
 
 // --- config validation tests ---
 
 func TestNewServer_RealMode_MissingRootDirReturnsError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	_, err := NewServer(Config{
 		Addr: "127.0.0.1:0",
 		Mode: "real",
@@ -559,7 +500,7 @@ func TestNewServer_RealMode_MissingRootDirReturnsError(t *testing.T) {
 }
 
 func TestNewServer_RealMode_NonexistentRootDirReturnsError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	_, err := NewServer(Config{
 		Addr:    "127.0.0.1:0",
 		Mode:    "real",

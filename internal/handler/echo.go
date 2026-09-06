@@ -12,7 +12,6 @@ func (EchoHandler) HandleTCP(_ context.Context, conn net.Conn, env Env) error {
 	for {
 		n, err := conn.Read(buf)
 		if n > 0 {
-			env.Capture.Write("", buf[:n])
 			if _, werr := conn.Write(buf[:n]); werr != nil {
 				return werr
 			}
@@ -24,6 +23,5 @@ func (EchoHandler) HandleTCP(_ context.Context, conn net.Conn, env Env) error {
 }
 
 func (EchoHandler) HandleUDP(_ context.Context, data []byte, _ net.Addr, env Env) ([]byte, error) {
-	env.Capture.Write("", data)
 	return data, nil
 }

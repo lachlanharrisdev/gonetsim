@@ -1,3 +1,11 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package config
 
 import (
@@ -7,9 +15,6 @@ import (
 	"time"
 )
 
-// / <summary>
-// / verifies that a new config file is created when one doesn't exist, checks loading, & that a second call doesn't overwrite the file
-// / </summary>
 func TestLoadOrCreate_CreatesAndLoadsConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gonetsim.toml")
@@ -181,5 +186,31 @@ func TestFirstExistingFile_PrefersLocalThenUserThenSystem(t *testing.T) {
 	}
 	if got != a {
 		t.Fatalf("expected first (highest precedence) file %q, got %q", a, got)
+	}
+}
+
+func TestLegacyCaptureDirIgnored(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gonetsim.toml")
+	content := `
+[http]
+enabled = true
+listen = "127.0.0.1:0"
+capture = true
+capture_dir = "/tmp/should-be-ignored"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	res, err := LoadOrCreate(path)
+	if err != nil {
+		t.Fatalf("LoadOrCreate: %v", err)
+	}
+	if err := res.Config.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if !res.Config.HTTP.Capture {
+		t.Fatalf("expected http.capture to survive")
 	}
 }

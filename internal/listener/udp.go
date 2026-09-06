@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net"
 	"os"
+	"sync"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
@@ -17,42 +19,60 @@ const maxPacketSize = 65535
 // receive order and scripts never run concurrently.
 type udpService struct {
 	conf    Config
-	handler handler.Handler
+	handler handler.UDPHandler
 	log     *slog.Logger
-	store   *captureStore
+	run     *capture.Run
 	global  *state.Store
+
+	mu sync.Mutex
+	pc *capture.PacketConn
 }
 
 func (s *udpService) Name() string { return s.conf.Name }
 
-func (s *udpService) Stop(_ context.Context) error { return nil }
-
-func (s *udpService) Start(ctx context.Context) error {
-	pc, err := net.ListenPacket("udp", s.conf.Addr)
-	if err != nil {
-		return err
+func (s *udpService) Stop(_ context.Context) error {
+	s.mu.Lock()
+	pc := s.pc
+	s.mu.Unlock()
+	if pc != nil {
+		_ = pc.Close()
+		pc.CloseAll()
 	}
-	defer func() { _ = pc.Close() }()
-
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = pc.Close()
-		case <-done:
-		}
-	}()
-
-	s.log.Info("listening", "on", s.conf.Addr, "handler", s.conf.HandlerSpec, "net", "udp")
-	if err := s.readLoop(ctx, pc); err != nil && !errors.Is(err, net.ErrClosed) && ctx.Err() == nil {
-		return err
-	}
-	s.store.closeAll()
 	return nil
 }
 
-func (s *udpService) readLoop(ctx context.Context, pc net.PacketConn) error {
+func (s *udpService) Start(ctx context.Context) error {
+	iface, err := s.run.NewInterface("gonetsim " + s.conf.Name + " udp")
+	if err != nil {
+		return err
+	}
+	rec, err := netx.ListenUDP(s.conf.Addr, s.run, iface, s.conf.ReadTimeout)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rec.Close() }()
+
+	s.mu.Lock()
+	s.pc = rec
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.pc = nil
+		s.mu.Unlock()
+	}()
+
+	done := netx.CloseOnCancel(ctx, rec)
+	defer done()
+
+	s.log.Info("listening", "on", s.conf.Addr, "handler", s.conf.HandlerSpec, "net", "udp")
+	if err := s.readLoop(ctx, rec); err != nil && !netx.IsExpectedClose(err, ctx) {
+		return err
+	}
+	rec.CloseAll()
+	return nil
+}
+
+func (s *udpService) readLoop(ctx context.Context, pc *capture.PacketConn) error {
 	buf := make([]byte, maxPacketSize)
 	for {
 		n, remote, err := pc.ReadFrom(buf)
@@ -63,11 +83,7 @@ func (s *udpService) readLoop(ctx context.Context, pc net.PacketConn) error {
 		data := make([]byte, n)
 		copy(data, buf[:n])
 
-		w, err := s.store.writer(remote.String())
-		if err != nil {
-			s.log.Warn("capture unavailable", "remote", remote.String(), "err", err)
-		}
-		env := handler.Env{Logger: s.log, Capture: w, Global: s.global}
+		env := handler.Env{Logger: s.log, Capture: pc.SessionFor(remote), Global: s.global}
 
 		reply, err := s.handler.HandleUDP(ctx, data, remote, env)
 		if err != nil {

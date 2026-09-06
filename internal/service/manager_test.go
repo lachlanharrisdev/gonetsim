@@ -1,13 +1,22 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package service
 
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 )
 
 type fakeService struct {
@@ -34,7 +43,7 @@ func (f *fakeService) Stop(ctx context.Context) error {
 }
 
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testutil.Logger()
 }
 
 func TestRunServices_PropagatesStartError(t *testing.T) {

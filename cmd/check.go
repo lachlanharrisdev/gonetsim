@@ -4,19 +4,38 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/handler"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/spf13/cobra"
 )
 
+func checkRunDir() error {
+	dir, err := capture.DefaultRunsDir()
+	if err != nil {
+		return fmt.Errorf("runs dir: %w", err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("runs dir %q: %w", dir, err)
+	}
+	f, err := os.CreateTemp(dir, ".writetest-*")
+	if err != nil {
+		return fmt.Errorf("runs dir %q is not writable: %w", dir, err)
+	}
+	_ = f.Close()
+	_ = os.Remove(f.Name())
+	return nil
+}
+
 var checkCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Validate configuration and check enabled services can bind their ports",
+	Short: "Validate configuration, runs directory, and check enabled services can bind their ports",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgRes, err := appconfig.LoadOrCreate(rootConfigPath)
@@ -49,39 +68,44 @@ var checkCmd = &cobra.Command{
 		checks := []struct {
 			name    string
 			enabled bool
-			run     func() error
+			run     func() (bool, error)
 			binds   []bindTarget
 		}{
 			{
 				name:    "dns",
 				enabled: cfg.DNS.Enabled,
-				run: func() error {
-					_, err := dnsConfig(cfg.DNS)
-					return err
+				run: func() (bool, error) {
+					conf, err := dnsConfig(cfg.DNS)
+					return conf.Capture, err
 				},
 				binds: dnsBindTargets(cfg.DNS.Listen, cfg.DNS.Network),
 			},
 			{
 				name:    "http",
 				enabled: cfg.HTTP.Enabled,
-				run: func() error {
-					_, err := httpConfig(cfg.HTTP)
-					return err
+				run: func() (bool, error) {
+					conf, err := httpConfig(cfg.HTTP)
+					return conf.Capture, err
 				},
 				binds: []bindTarget{{net: "tcp", addr: cfg.HTTP.Listen}},
 			},
 			{
 				name:    "https",
 				enabled: cfg.HTTPS.Enabled,
-				run: func() error {
-					_, err := httpsConfig(cfg.HTTPS, configDir)
-					return err
+				run: func() (bool, error) {
+					conf, err := httpsConfig(cfg.HTTPS, configDir)
+					return conf.Capture, err
 				},
 				binds: []bindTarget{{net: "tcp", addr: cfg.HTTPS.Listen}},
 			},
 		}
 
 		var failures []string
+		fail := func(name string, err error) error {
+			failures = append(failures, err.Error())
+			return write("%-8s FAIL      %v\n", name, err)
+		}
+		captureWanted := false
 		for _, c := range checks {
 			if !c.enabled {
 				if err := write("%-8s disabled\n", c.name); err != nil {
@@ -89,16 +113,16 @@ var checkCmd = &cobra.Command{
 				}
 				continue
 			}
-			if err := c.run(); err != nil {
-				failures = append(failures, err.Error())
-				if werr := write("%-8s FAIL      %v\n", c.name, err); werr != nil {
+			capturing, err := c.run()
+			if err != nil {
+				if werr := fail(c.name, err); werr != nil {
 					return werr
 				}
 				continue
 			}
+			captureWanted = captureWanted || capturing
 			if err := preflightBinds(c.binds); err != nil {
-				failures = append(failures, err.Error())
-				if werr := write("%-8s FAIL      %v\n", c.name, err); werr != nil {
+				if werr := fail(c.name, err); werr != nil {
 					return werr
 				}
 				continue
@@ -118,8 +142,7 @@ var checkCmd = &cobra.Command{
 
 			conf, err := listenerConfig(l, configDir)
 			if err != nil {
-				failures = append(failures, err.Error())
-				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+				if werr := fail(l.Name, err); werr != nil {
 					return werr
 				}
 				continue
@@ -127,22 +150,31 @@ var checkCmd = &cobra.Command{
 
 			// compile the lua script to catch errors
 			if _, err := handler.New(conf.HandlerSpec, conf.BaseDir, nil); err != nil {
-				failures = append(failures, err.Error())
-				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+				if werr := fail(l.Name, err); werr != nil {
 					return werr
 				}
 				continue
 			}
 
 			if err := preflightBinds([]bindTarget{{net: conf.Network, addr: conf.Addr}}); err != nil {
-				failures = append(failures, err.Error())
-				if werr := write("%-8s FAIL      %v\n", l.Name, err); werr != nil {
+				if werr := fail(l.Name, err); werr != nil {
 					return werr
 				}
 				continue
 			}
+			captureWanted = captureWanted || conf.Capture
 
 			if err := write("%-8s OK        %s %s %s\n", l.Name, conf.Network, conf.Addr, conf.HandlerSpec); err != nil {
+				return err
+			}
+		}
+
+		if captureWanted {
+			if err := checkRunDir(); err != nil {
+				if werr := fail("capture", err); werr != nil {
+					return werr
+				}
+			} else if err := write("%-8s OK        %s\n", "capture", "runs directory writable"); err != nil {
 				return err
 			}
 		}
@@ -201,7 +233,7 @@ func tryBind(network, addr string) error {
 func describeBindError(t bindTarget, err error) error {
 	addr := t.addr
 	if errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) {
-		if port, ok := parseAddrPortNumber(addr); ok && port < 1024 {
+		if port, ok := netx.ParsePort(addr); ok && port < 1024 {
 			return fmt.Errorf("cannot bind %s: permission denied (ports below 1024 require elevated privileges on this system)", addr)
 		}
 	}
@@ -209,18 +241,6 @@ func describeBindError(t bindTarget, err error) error {
 		return fmt.Errorf("cannot bind %s: address already in use", addr)
 	}
 	return fmt.Errorf("cannot bind %s: %w", addr, err)
-}
-
-func parseAddrPortNumber(addr string) (int, bool) {
-	_, portStr, err := net.SplitHostPort(addr)
-	if err != nil {
-		return 0, false
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return 0, false
-	}
-	return port, true
 }
 
 func init() {

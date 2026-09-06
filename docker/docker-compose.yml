@@ -32,7 +32,7 @@ services:
     #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
     #   - ../handlers:/etc/gonetsim/handlers:ro
 
-    # listener capture files are written to ./artifacts inside the container
-    # (i.e. /artifacts); mount a volume there to keep them:
+    # the run capture is written inside the container's data directory;
+    # mount a volume there to keep it, or pass --output to choose a path:
     # volumes:
-    #   - ./artifacts:/artifacts
+    #   - ./captures:/root/.local/share/gonetsim/runs

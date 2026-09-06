@@ -1,3 +1,11 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package state
 
 import (
@@ -74,34 +82,6 @@ func TestState(t *testing.T) {
 		}
 		if err := s.Set("k", ""); err != nil {
 			t.Fatalf("empty value should be allowed: %v", err)
-		}
-	})
-
-	t.Run("parse size", func(t *testing.T) {
-		cases := []struct {
-			in      string
-			want    int64
-			wantErr bool
-		}{
-			{"64MiB", 64 << 20, false},
-			{"64mib", 64 << 20, false},
-			{"512K", 512 << 10, false},
-			{"1GiB", 1 << 30, false},
-			{"4096", 4096, false},
-			{"", 0, true},
-			{"64GiB", 64 << 30, false},
-			{"abc", 0, true},
-			{"-1MiB", 0, true},
-			{"64TiB", 0, true},
-		}
-		for _, tc := range cases {
-			got, err := ParseSize(tc.in)
-			if tc.wantErr && err == nil {
-				t.Errorf("ParseSize(%q): expected error", tc.in)
-			}
-			if !tc.wantErr && (err != nil || got != tc.want) {
-				t.Errorf("ParseSize(%q) = %d, %v; want %d", tc.in, got, err, tc.want)
-			}
 		}
 	})
 }

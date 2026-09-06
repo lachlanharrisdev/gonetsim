@@ -9,13 +9,16 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
-
-	"github.com/lachlanharrisdev/gonetsim/internal/config"
 )
 
-func NewLogger(cfg config.LoggingConfig) (*slog.Logger, error) {
+type Options struct {
+	Format string
+	Level  string
+}
+
+func NewLogger(cfg Options) (*slog.Logger, error) {
 	level := parseLevel(cfg.Level)
-	if strings.ToLower(strings.TrimSpace(cfg.LogFormat)) == "json" {
+	if strings.ToLower(strings.TrimSpace(cfg.Format)) == "json" {
 		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})), nil
 	}
 

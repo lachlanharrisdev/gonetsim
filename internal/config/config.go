@@ -14,8 +14,6 @@ import (
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
-
-	"github.com/lachlanharrisdev/gonetsim/internal/state"
 )
 
 const (
@@ -45,34 +43,37 @@ type GeneralConfig struct {
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"`
 }
 
+type ServiceBase struct {
+	Enabled bool   `koanf:"enabled"`
+	Listen  string `koanf:"listen"`
+	Capture bool   `koanf:"capture"`
+}
+
 type DNSConfig struct {
-	Enabled  bool   `koanf:"enabled"`
-	Listen   string `koanf:"listen"`
-	Network  string `koanf:"network"`
-	IPv4     string `koanf:"ipv4"`
-	IPv6     string `koanf:"ipv6"`
-	Domain   string `koanf:"domain"`
-	TXT      string `koanf:"txt"`
-	TTL      uint32 `koanf:"ttl"`
-	Compress bool   `koanf:"compress"`
+	ServiceBase `koanf:",squash"`
+	Network     string `koanf:"network"`
+	IPv4        string `koanf:"ipv4"`
+	IPv6        string `koanf:"ipv6"`
+	Domain      string `koanf:"domain"`
+	TXT         string `koanf:"txt"`
+	TTL         uint32 `koanf:"ttl"`
+	Compress    bool   `koanf:"compress"`
 }
 
 type HTTPConfig struct {
-	Enabled bool   `koanf:"enabled"`
-	Listen  string `koanf:"listen"`
-	Status  int    `koanf:"status"`
-	Mode    string `koanf:"mode"`
-	RootDir string `koanf:"root_dir"`
+	ServiceBase `koanf:",squash"`
+	Status      int    `koanf:"status"`
+	Mode        string `koanf:"mode"`
+	RootDir     string `koanf:"root_dir"`
 }
 
 type HTTPSConfig struct {
-	Enabled bool   `koanf:"enabled"`
-	Listen  string `koanf:"listen"`
-	Status  int    `koanf:"status"`
-	Mode    string `koanf:"mode"`
-	RootDir string `koanf:"root_dir"`
-	Cert    string `koanf:"cert"`
-	Key     string `koanf:"key"`
+	ServiceBase `koanf:",squash"`
+	Status      int    `koanf:"status"`
+	Mode        string `koanf:"mode"`
+	RootDir     string `koanf:"root_dir"`
+	Cert        string `koanf:"cert"`
+	Key         string `koanf:"key"`
 }
 
 type LoggingConfig struct {
@@ -107,27 +108,24 @@ func Default() Config {
 	return Config{
 		General: GeneralConfig{ShutdownTimeout: 2 * time.Second},
 		DNS: DNSConfig{
-			Enabled:  true,
-			Listen:   ":53",
-			Network:  "udp",
-			IPv4:     "auto",
-			IPv6:     "::1",
-			Domain:   "localhost",
-			TXT:      "TXT record response from GoNetSim",
-			TTL:      60,
-			Compress: false,
+			ServiceBase: ServiceBase{Enabled: true, Listen: ":53", Capture: true},
+			Network:     "udp",
+			IPv4:        "auto",
+			IPv6:        "::1",
+			Domain:      "localhost",
+			TXT:         "TXT record response from GoNetSim",
+			TTL:         60,
+			Compress:    false,
 		},
 		HTTP: HTTPConfig{
-			Enabled: true,
-			Listen:  ":80",
-			Status:  200,
-			Mode:    "fake",
+			ServiceBase: ServiceBase{Enabled: true, Listen: ":80", Capture: true},
+			Status:      200,
+			Mode:        "fake",
 		},
 		HTTPS: HTTPSConfig{
-			Enabled: true,
-			Listen:  ":443",
-			Status:  200,
-			Mode:    "fake",
+			ServiceBase: ServiceBase{Enabled: true, Listen: ":443", Capture: true},
+			Status:      200,
+			Mode:        "fake",
 		},
 		Logging: LoggingConfig{
 			LogFormat: "text",
@@ -162,7 +160,7 @@ func (c Config) Validate() error {
 	}
 
 	if strings.TrimSpace(c.State.TotalLimit) != "" {
-		if _, err := state.ParseSize(c.State.TotalLimit); err != nil {
+		if _, err := ParseSize(c.State.TotalLimit); err != nil {
 			return fmt.Errorf("state.total_limit: %w", err)
 		}
 	}
@@ -192,12 +190,6 @@ func LoadOrCreate(configPath string) (LoadResult, error) {
 	return LoadOrCreateWithOverrides(configPath, nil)
 }
 
-// LoadOrCreateWithOverrides loads defaults, then the on-disk config file, then applies
-// the provided flat overrides (dot-delimited keys).
-//
-// Validation is intentionally not run here; callers should map the resulting config
-// into the isolated service configs (e.g. dnsserver.Config) and call Validate() once
-// on those structs before starting services.
 func LoadOrCreateWithOverrides(configPath string, overrides map[string]any) (LoadResult, error) {
 	resolved, created, err := resolveAndCreate(configPath)
 	if err != nil {

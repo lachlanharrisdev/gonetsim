@@ -3,10 +3,10 @@ package listener
 import (
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
@@ -20,28 +20,19 @@ type Config struct {
 	Capture     bool
 	// BaseDir is the directory relative handler script paths resolve against.
 	BaseDir string
-	// CaptureDir overrides the base directory for capture files.
-	// When empty, capture.DefaultDir is used.
-	CaptureDir string
 }
 
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.Name) == "" {
 		return errors.New("name is required")
 	}
-	if c.Network == "" {
-		return errors.New("network is required")
-	}
-	switch c.Network {
-	case "tcp", "udp":
-		// ok
-	default:
-		return errors.New("network must be one of: tcp, udp")
+	if err := netx.ValidateNetwork(c.Network, "tcp", "udp"); err != nil {
+		return err
 	}
 	if c.Addr == "" {
 		return errors.New("listen addr is required")
 	}
-	if _, err := net.ResolveTCPAddr("tcp", c.Addr); err != nil {
+	if _, err := netx.ParseAddr(c.Addr); err != nil {
 		return fmt.Errorf("invalid listen addr %q (expected host:port): %w", c.Addr, err)
 	}
 	if strings.TrimSpace(c.HandlerSpec) == "" {

@@ -22,10 +22,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install libpcap
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcap-dev
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -37,7 +33,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest] # [windows-latest, ubuntu-latest, ubuntu-24.04-arm] -- skipped due to libpcap requirement
+        os: [windows-latest, ubuntu-latest, ubuntu-24.04-arm]
     name: test
     runs-on: ${{ matrix.os }}
     steps:
@@ -52,10 +48,6 @@ jobs:
         shell: bash
         if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
         run: go mod download
-      - name: Install libpcap
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcap-dev
       - name: go build
         run: go build
       - name: go test

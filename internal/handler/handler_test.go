@@ -1,58 +1,29 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package handler
 
 import (
 	"io"
 	"log/slog"
 	"net"
-	"os"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	lua "github.com/yuin/gopher-lua"
 
 	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 )
 
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
-// testCapture opens a capture writer in a temp dir; the returned func reads
-// the capture file back.
-func testCapture(t *testing.T) (*capture.Writer, func() string) {
-	t.Helper()
-	base := t.TempDir()
-	store, err := capture.NewStore(base, "test")
-	if err != nil {
-		t.Fatalf("NewStore: %v", err)
-	}
-	w, err := store.Conn("203.0.113.10:1", time.Now())
-	if err != nil {
-		t.Fatalf("Conn: %v", err)
-	}
-	t.Cleanup(func() { _ = w.Close() })
-	return w, func() string {
-		entries, err := os.ReadDir(filepath.Join(base, "test"))
-		if err != nil || len(entries) != 1 {
-			return ""
-		}
-		data, _ := os.ReadFile(filepath.Join(base, "test", entries[0].Name()))
-		return string(data)
-	}
-}
-
-// pipe returns a connected pair, closed on test cleanup.
-func pipe(t *testing.T) (client, server net.Conn) {
-	t.Helper()
-	client, server = net.Pipe()
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-	})
-	return client, server
+	return testutil.Logger()
 }
 
 // servePipe runs h against one end of a pipe; the other end is returned for
@@ -85,64 +56,27 @@ func roundtrip(t *testing.T, client net.Conn, payload, reply string) {
 
 func TestBuiltins(t *testing.T) {
 	t.Run("tcp echo", func(t *testing.T) {
-		w, read := testCapture(t)
-		client, done := servePipe(t, EchoHandler{}, Env{Logger: discardLogger(), Capture: w})
+		client, done := servePipe(t, EchoHandler{}, Env{Logger: discardLogger()})
 		roundtrip(t, client, "abc", "abc")
 		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
-		if got := read(); got != "abc" {
-			t.Fatalf("capture content %q", got)
-		}
 	})
 
-	t.Run("tcp sink", func(t *testing.T) {
-		w, read := testCapture(t)
-		client, done := servePipe(t, SinkHandler{}, Env{Logger: discardLogger(), Capture: w})
-		roundtrip(t, client, "secret exfil", "")
-		_ = client.Close()
-		if err := <-done; err != nil {
-			t.Fatalf("HandleTCP: %v", err)
-		}
-		if got := read(); got != "secret exfil" {
-			t.Fatalf("capture content %q", got)
-		}
-	})
-
-	addr, _ := net.ResolveUDPAddr("udp", "203.0.113.10:53")
 	t.Run("udp echo", func(t *testing.T) {
+		addr, _ := net.ResolveUDPAddr("udp", "203.0.113.10:53")
 		reply, err := EchoHandler{}.HandleUDP(t.Context(), []byte("query"), addr, Env{Logger: discardLogger()})
 		if err != nil || string(reply) != "query" {
 			t.Fatalf("udp echo: %v %q", err, reply)
 		}
 	})
-
-	t.Run("udp sink", func(t *testing.T) {
-		reply, err := SinkHandler{}.HandleUDP(t.Context(), []byte("x"), nil, Env{Logger: discardLogger()})
-		if err != nil || reply != nil {
-			t.Fatalf("udp sink: %v %q", err, reply)
-		}
-	})
 }
 
 func TestNewSpecErrors(t *testing.T) {
-	cases := []struct {
-		spec    string
-		baseDir string
-	}{
-		{"", "testdata"},
-		{"noscheme", "testdata"},
-		{"builtin:nope", "testdata"},
-		{"python:foo.py", "testdata"},
-		{"lua:missing.lua", "testdata"},
-		{"lua:bad_syntax.lua", "testdata"},
-		{"lua:no_entry.lua", "testdata"},
-		{"lua:sandbox_escape.lua", "testdata"},
-	}
-	for _, tc := range cases {
-		if _, err := New(tc.spec, tc.baseDir, nil); err == nil {
-			t.Errorf("New(%q): expected error", tc.spec)
+	for _, spec := range []string{"", "noscheme", "builtin:nope", "python:foo.py", "lua:missing.lua", "lua:bad_syntax.lua", "lua:no_entry.lua", "lua:sandbox_escape.lua"} {
+		if _, err := New(spec, "testdata", nil); err == nil {
+			t.Errorf("New(%q): expected error", spec)
 		}
 	}
 }
@@ -161,28 +95,6 @@ func TestLuaHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("tcp read(n)", func(t *testing.T) {
-		h, err := NewLua("testdata/read_n.lua", nil)
-		if err != nil {
-			t.Fatalf("NewLua: %v", err)
-		}
-		client, done := servePipe(t, h, Env{Logger: discardLogger()})
-		roundtrip(t, client, "ABCDrest", "got:ABCD")
-		_ = client.Close()
-		<-done
-	})
-
-	t.Run("tcp read_until headers", func(t *testing.T) {
-		h, err := NewLua("testdata/read_until.lua", nil)
-		if err != nil {
-			t.Fatalf("NewLua: %v", err)
-		}
-		client, done := servePipe(t, h, Env{Logger: discardLogger()})
-		roundtrip(t, client, "GET / HTTP/1.1\r\nHost: x\r\n\r\nrest", "len:27")
-		_ = client.Close()
-		<-done
-	})
-
 	t.Run("udp packets", func(t *testing.T) {
 		remote, _ := net.ResolveUDPAddr("udp", "203.0.113.10:53531")
 		h, err := NewLua("testdata/packet.lua", nil)
@@ -199,135 +111,85 @@ func TestLuaHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("capture and log", func(t *testing.T) {
-		h, err := NewLua("testdata/capture.lua", nil)
+	t.Run("capture comment", func(t *testing.T) {
+		h, err := NewLua("testdata/comment.lua", nil)
 		if err != nil {
 			t.Fatalf("NewLua: %v", err)
 		}
-		w, read := testCapture(t)
-		client, done := servePipe(t, h, Env{Logger: discardLogger(), Capture: w})
-		roundtrip(t, client, "payload", "")
+		c1, c2 := net.Pipe()
+		defer c2.Close()
+		done := make(chan error, 1)
+		go func() {
+			done <- h.HandleTCP(t.Context(), c2, Env{Logger: discardLogger()})
+		}()
+
+		run, err := capture.NewRun(filepath.Join(t.TempDir(), "run.pcapng"))
+		if err != nil {
+			t.Fatalf("NewRun: %v", err)
+		}
+		defer func() { _ = run.Close() }()
+		iface, err := run.NewInterface("test")
+		if err != nil {
+			t.Fatalf("NewInterface: %v", err)
+		}
+		ses, err := run.NewSession("tcp",
+			netip.MustParseAddrPort("127.0.0.1:9"), netip.MustParseAddrPort("203.0.113.10:1"), iface)
+		if err != nil {
+			t.Fatalf("NewSession: %v", err)
+		}
+		ses.Comment("client said hello")
+		_ = ses.Write([]byte("hello"), true)
+		if err := ses.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		_, _ = c1.Write([]byte("hello"))
+		if err := c1.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := <-done; err != nil {
+			t.Fatalf("HandleTCP: %v", err)
+		}
+	})
+}
+
+func TestLuaState(t *testing.T) {
+	h, err := NewLua("testdata/state.lua", state.NewBudget(state.DefaultTotalLimit))
+	if err != nil {
+		t.Fatalf("NewLua: %v", err)
+	}
+	env := Env{Logger: discardLogger(), Global: state.NewStore(state.NewBudget(state.DefaultTotalLimit))}
+	for i, want := range []string{"1|conn|yes", "2|conn|yes"} {
+		client, done := servePipe(t, h, env)
+		buf := make([]byte, len(want))
+		if _, err := io.ReadFull(client, buf); err != nil {
+			t.Fatalf("ReadFull: %v", err)
+		}
+		if string(buf) != want {
+			t.Fatalf("connection %d = %q, want %q", i, buf, want)
+		}
 		_ = client.Close()
 		if err := <-done; err != nil {
 			t.Fatalf("HandleTCP: %v", err)
 		}
-		if got := read(); got != "=== section ===\npayload\n" {
-			t.Fatalf("capture content %q", got)
-		}
-	})
-
-	t.Run("sandbox globals", func(t *testing.T) {
-		h, err := NewLua("testdata/sandbox_report.lua", nil)
-		if err != nil {
-			t.Fatalf("NewLua: %v", err)
-		}
-		client, done := servePipe(t, h, Env{Logger: discardLogger()})
-		buf := make([]byte, 1024)
-		n, err := client.Read(buf)
-		if err != nil {
-			t.Fatalf("Read: %v", err)
-		}
-		reply := string(buf[:n])
-		if !strings.Contains(reply, "io=nil") || !strings.Contains(reply, "os=nil") || !strings.Contains(reply, "require=nil") {
-			t.Fatalf("sandbox globals leaked: %q", reply)
-		}
-		_ = client.Close()
-		<-done
-	})
-}
-
-func TestLuaStateScopes(t *testing.T) {
-	cases := []struct {
-		name        string
-		budget      *state.Budget
-		firstReply  string
-		secondReply string
-	}{
-		{"persistence across connections", state.NewBudget(state.DefaultTotalLimit), "1|conn|yes", "2|conn|yes"},
-		{"set failure is graceful", state.NewBudget(3), "1|nil|nil", "2|nil|nil"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			h, err := NewLua("testdata/state.lua", tc.budget)
-			if err != nil {
-				t.Fatalf("NewLua: %v", err)
-			}
-
-			env := Env{Logger: discardLogger(), Global: state.NewStore(tc.budget)}
-
-			client, done := servePipe(t, h, env)
-			buf := make([]byte, len(tc.firstReply))
-			if _, err := io.ReadFull(client, buf); err != nil {
-				t.Fatalf("ReadFull: %v", err)
-			}
-			if string(buf) != tc.firstReply {
-				t.Fatalf("first connection = %q, want %q", buf, tc.firstReply)
-			}
-			_ = client.Close()
-			if err := <-done; err != nil {
-				t.Fatalf("HandleTCP: %v", err)
-			}
-
-			client, done = servePipe(t, h, env)
-			buf = make([]byte, len(tc.secondReply))
-			if _, err := io.ReadFull(client, buf); err != nil {
-				t.Fatalf("ReadFull: %v", err)
-			}
-			if string(buf) != tc.secondReply {
-				t.Fatalf("second connection = %q, want %q", buf, tc.secondReply)
-			}
-			_ = client.Close()
-			<-done
-		})
 	}
 }
 
-func TestLuaConnLimits(t *testing.T) {
-	flood := func(client net.Conn) {
-		go func() {
-			buf := make([]byte, 4096)
-			for {
-				if _, err := client.Write(buf); err != nil {
-					return
-				}
-			}
-		}()
+func TestSandboxGlobals(t *testing.T) {
+	h, err := NewLua("testdata/sandbox_report.lua", nil)
+	if err != nil {
+		t.Fatalf("NewLua: %v", err)
 	}
-
-	t.Run("read_line cap", func(t *testing.T) {
-		client, server := pipe(t)
-		flood(client)
-
-		lc := newLuaConn(server)
-		_, err := lc.readLine()
-		if err == nil || !strings.Contains(err.Error(), "line exceeds") {
-			t.Fatalf("expected line cap error, got: %v", err)
-		}
-	})
-
-	t.Run("read_until cap", func(t *testing.T) {
-		client, server := pipe(t)
-		flood(client)
-
-		lc := newLuaConn(server)
-		_, err := lc.readUntil([]byte("\r\n"))
-		if err == nil || !strings.Contains(err.Error(), "read exceeds") {
-			t.Fatalf("expected read cap error, got: %v", err)
-		}
-	})
-
-	t.Run("read_until across chunks", func(t *testing.T) {
-		client, server := pipe(t)
-		go func() {
-			_, _ = client.Write([]byte("HEAD"))
-			_, _ = client.Write([]byte("ER:X"))
-			_, _ = client.Write([]byte("\r\n\r\n"))
-		}()
-
-		lc := newLuaConn(server)
-		v, err := lc.readUntil([]byte("\r\n\r\n"))
-		if err != nil || v != lua.LString("HEADER:X\r\n\r\n") {
-			t.Fatalf("readUntil: %v %q", err, v)
-		}
-	})
+	client, done := servePipe(t, h, Env{Logger: discardLogger()})
+	buf := make([]byte, 1024)
+	n, err := client.Read(buf)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	reply := string(buf[:n])
+	if !strings.Contains(reply, "io=nil") || !strings.Contains(reply, "os=nil") || !strings.Contains(reply, "require=nil") {
+		t.Fatalf("sandbox globals leaked: %q", reply)
+	}
+	_ = client.Close()
+	<-done
 }

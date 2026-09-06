@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/observability"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
@@ -25,7 +26,7 @@ type runOptions struct {
 	timeout   time.Duration
 	tls       bool
 	noCapture bool
-	artifacts string
+	output    string
 }
 
 var runOpts runOptions
@@ -40,9 +41,9 @@ func addRunFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&runOpts.tls, "tls", false,
 		"wrap inline tcp listeners in TLS with an in-memory self-signed certificate")
 	cmd.Flags().BoolVar(&runOpts.noCapture, "no-capture", false,
-		"disable capture for this run")
-	cmd.Flags().StringVar(&runOpts.artifacts, "artifacts", "",
-		"base directory for capture files (default ./artifacts)")
+		"don't write a capture file for this run")
+	cmd.Flags().StringVar(&runOpts.output, "output", "",
+		"write the run capture to this pcapng file instead of the default runs directory")
 }
 
 var runCmd = &cobra.Command{
@@ -85,7 +86,7 @@ func runTargets(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger, err := observability.NewLogger(cfg.Logging)
+	logger, err := observability.NewLogger(observability.Options{Format: cfg.Logging.LogFormat, Level: cfg.Logging.Level})
 	if err != nil {
 		return err
 	}
@@ -109,17 +110,36 @@ func runTargets(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	limit, err := state.ParseSize(cfg.State.TotalLimit)
+	limit, err := appconfig.ParseSize(cfg.State.TotalLimit)
 	if err != nil {
 		return err
 	}
 	global := state.NewStore(state.NewBudget(limit))
 
-	resolved, err := resolveTargets(specs, &cfg, configDir, cwd, runOpts, logger, global)
+	var run *capture.Run
+	if !runOpts.noCapture {
+		path, err := capture.RunPath(runOpts.output)
+		if err != nil {
+			return err
+		}
+		run, err = capture.NewRun(path)
+		if err != nil {
+			return err
+		}
+		logger.Info("capture", "path", path)
+	}
+
+	resolved, err := resolveTargets(specs, &cfg, configDir, cwd, runOpts, logger, global, run)
 	if err != nil {
+		if run != nil {
+			_ = run.Close()
+		}
 		return err
 	}
 	if len(resolved) == 0 {
+		if run != nil {
+			_ = run.Close()
+		}
 		return fmt.Errorf("at least one service must be enabled")
 	}
 
@@ -131,5 +151,12 @@ func runTargets(cmd *cobra.Command, args []string) error {
 	}
 	logger.Info("running", "targets", strings.Join(displays, " "))
 
-	return manager.RunAll(runCtx)
+	runErr := manager.RunAll(runCtx)
+	if run != nil {
+		packets, first, last := run.Stats()
+		path := run.Path()
+		_ = run.Close()
+		logger.Info("capture saved", "path", path, "packets", packets, "duration", last.Sub(first).Round(time.Millisecond))
+	}
+	return runErr
 }

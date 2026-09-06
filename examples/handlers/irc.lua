@@ -22,7 +22,7 @@ function handle(conn)
         line = line:gsub("%s+$", "")
 
         if line ~= "" then
-            capture:write("irc", line)
+            capture:comment("irc: " .. line)
             log:info(line)
 
             local cmd = line:match("^(%S+)")
