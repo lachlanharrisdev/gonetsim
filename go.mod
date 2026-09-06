@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/fatih/color v1.19.0
+	github.com/google/gopacket v1.1.19
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
 	github.com/knadh/koanf/providers/confmap v1.0.1
 	github.com/knadh/koanf/providers/file v1.2.1

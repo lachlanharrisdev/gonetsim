@@ -2,14 +2,14 @@ package dnsserver
 
 import (
 	"fmt"
-	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/miekg/dns"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 )
 
 // not a test in of itself; sets up config and server for all record-specific tests (e.g. A, AAAA, TXT) to use, to avoid duplication of setup code in each test
@@ -31,7 +31,7 @@ func queryTestsHelper(t *testing.T) (client *dns.Client, addr string, config Con
 		TTL:            60,
 		Compress:       false,
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(conf, logger)
 	if err != nil {
 		// failed to create server with error
@@ -87,7 +87,7 @@ func queryBothTransportsHelper(t *testing.T) (udpClient *dns.Client, tcpClient *
 		TTL:            60,
 		Compress:       false,
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 
 	srvs, err := NewServers(conf, logger)
 	if err != nil {
@@ -146,196 +146,118 @@ func TestAutoSinkholeIPv4(t *testing.T) {
 	}
 }
 
-func TestWildcardDomain(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
+func TestRecordTypes(t *testing.T) {
+	cases := []struct {
+		name  string
+		qname string
+		qtype uint16
+		check func(t *testing.T, resp *dns.Msg, conf Config)
+	}{
+		{"wildcard", "random-beacon-9f3a.malware.example.", dns.TypeA, checkA},
+		{"A", "example.com.", dns.TypeA, checkA},
+		{"AAAA", "example.com.", dns.TypeAAAA, checkAAAA},
+		{"TXT", "example.com.", dns.TypeTXT, checkTXT},
+		{"CNAME", "example.com.", dns.TypeCNAME, checkDomainTarget},
+		{"MX", "example.com.", dns.TypeMX, checkDomainTarget},
+		{"NS", "example.com.", dns.TypeNS, checkDomainTarget},
+		{"SRV", "_sip._tcp.example.com.", dns.TypeSRV, checkDomainTarget},
+		{"PTR", "example.com.", dns.TypePTR, checkDomainTarget},
+		{"SOA", "example.com.", dns.TypeSOA, checkSOA},
+		{"CAA", "example.com.", dns.TypeCAA, checkCAA},
+	}
+	client, addr, conf, teardown := queryTestsHelper(t)
 	defer teardown()
-
-	response := exchange(t, client, addr, "random-beacon-9f3a.malware.example.", dns.TypeA)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	a, ok := response.Answer[0].(*dns.A)
-	if !ok {
-		t.Fatalf("expected *dns.A, got %T", response.Answer[0])
-	}
-	if got := a.A.String(); got != config.SinkholeIPv4.String() {
-		t.Fatalf("expected %s, got %s", config.SinkholeIPv4.String(), got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := exchange(t, client, addr, tc.qname, tc.qtype)
+			if len(resp.Answer) != 1 {
+				t.Fatalf("expected 1 answer, got %d", len(resp.Answer))
+			}
+			tc.check(t, resp, conf)
+		})
 	}
 }
 
-func TestAQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeA)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	a, ok := response.Answer[0].(*dns.A)
+func checkA(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	a, ok := resp.Answer[0].(*dns.A)
 	if !ok {
-		t.Fatalf("expected *dns.A, got %T", response.Answer[0])
+		t.Fatalf("expected *dns.A, got %T", resp.Answer[0])
 	}
-	if got := a.A.String(); got != config.SinkholeIPv4.String() {
-		t.Fatalf("expected %s, got %s", config.SinkholeIPv4.String(), got)
+	if got := a.A.String(); got != conf.SinkholeIPv4.String() {
+		t.Fatalf("expected %s, got %s", conf.SinkholeIPv4.String(), got)
 	}
 }
 
-func TestAAAAQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeAAAA)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	aaaa, ok := response.Answer[0].(*dns.AAAA)
+func checkAAAA(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	aaaa, ok := resp.Answer[0].(*dns.AAAA)
 	if !ok {
-		t.Fatalf("expected *dns.AAAA, got %T", response.Answer[0])
+		t.Fatalf("expected *dns.AAAA, got %T", resp.Answer[0])
 	}
-	if got := aaaa.AAAA.String(); got != config.SinkholeIPv6.String() {
-		t.Fatalf("expected %s, got %s", config.SinkholeIPv6.String(), got)
+	if got := aaaa.AAAA.String(); got != conf.SinkholeIPv6.String() {
+		t.Fatalf("expected %s, got %s", conf.SinkholeIPv6.String(), got)
 	}
 }
 
-func TestTXTQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeTXT)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	txt, ok := response.Answer[0].(*dns.TXT)
+func checkTXT(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	txt, ok := resp.Answer[0].(*dns.TXT)
 	if !ok {
-		t.Fatalf("expected *dns.TXT, got %T", response.Answer[0])
+		t.Fatalf("expected *dns.TXT, got %T", resp.Answer[0])
 	}
 	if len(txt.Txt) != 1 {
 		t.Fatalf("expected 1 TXT record, got %d", len(txt.Txt))
 	}
-	if got := txt.Txt[0]; got != config.SinkholeTXT {
-		t.Fatalf("expected %s, got %s", config.SinkholeTXT, got)
+	if got := txt.Txt[0]; got != conf.SinkholeTXT {
+		t.Fatalf("expected %s, got %s", conf.SinkholeTXT, got)
 	}
 }
 
-func TestCNAMEQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeCNAME)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
+func checkDomainTarget(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	var actual string
+	switch rr := resp.Answer[0].(type) {
+	case *dns.CNAME:
+		actual = rr.Target
+	case *dns.MX:
+		actual = rr.Mx
+	case *dns.NS:
+		actual = rr.Ns
+	case *dns.SRV:
+		actual = rr.Target
+	case *dns.PTR:
+		actual = rr.Ptr
+	default:
+		t.Fatalf("unexpected type %T", resp.Answer[0])
 	}
-	cname, ok := response.Answer[0].(*dns.CNAME)
-	if !ok {
-		t.Fatalf("expected *dns.CNAME, got %T", response.Answer[0])
-	}
-	if got := cname.Target; got != config.SinkholeDomain+"." {
-		t.Fatalf("expected %s., got %s", config.SinkholeDomain, got)
-	}
-}
-
-func TestMXQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeMX)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	mx, ok := response.Answer[0].(*dns.MX)
-	if !ok {
-		t.Fatalf("expected *dns.MX, got %T", response.Answer[0])
-	}
-	if got := mx.Mx; got != config.SinkholeDomain+"." {
-		t.Fatalf("expected %s., got %s", config.SinkholeDomain, got)
+	if want := conf.SinkholeDomain + "."; actual != want {
+		t.Fatalf("expected %s, got %s", want, actual)
 	}
 }
 
-func TestNSQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeNS)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	ns, ok := response.Answer[0].(*dns.NS)
+func checkSOA(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	soa, ok := resp.Answer[0].(*dns.SOA)
 	if !ok {
-		t.Fatalf("expected *dns.NS, got %T", response.Answer[0])
+		t.Fatalf("expected *dns.SOA, got %T", resp.Answer[0])
 	}
-	if got := ns.Ns; got != config.SinkholeDomain+"." {
-		t.Fatalf("expected %s., got %s", config.SinkholeDomain, got)
-	}
-}
-
-func TestSRVQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "_sip._tcp.example.com.", dns.TypeSRV)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	srv, ok := response.Answer[0].(*dns.SRV)
-	if !ok {
-		t.Fatalf("expected *dns.SRV, got %T", response.Answer[0])
-	}
-	if got := srv.Target; got != config.SinkholeDomain+"." {
-		t.Fatalf("expected %s., got %s", config.SinkholeDomain, got)
-	}
-}
-
-func TestPTRQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypePTR)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	ptr, ok := response.Answer[0].(*dns.PTR)
-	if !ok {
-		t.Fatalf("expected *dns.PTR, got %T", response.Answer[0])
-	}
-	if got := ptr.Ptr; got != config.SinkholeDomain+"." {
-		t.Fatalf("expected %s., got %s", config.SinkholeDomain, got)
-	}
-}
-
-func TestSOAQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeSOA)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, got %d", len(response.Answer))
-	}
-	soa, ok := response.Answer[0].(*dns.SOA)
-	if !ok {
-		t.Fatalf("expected *dns.SOA, got %T", response.Answer[0])
-	}
-	if got := soa.Ns; got != config.SinkholeDomain+"." {
+	if got := soa.Ns; got != conf.SinkholeDomain+"." {
 		t.Fatalf("expected localhost., got %s", got)
 	}
-	if got := soa.Mbox; got != fmt.Sprintf("hostmaster.%s.", config.SinkholeDomain) {
-		t.Fatalf("expected hostmaster.%s., got %s", config.SinkholeDomain, got)
+	if got := soa.Mbox; got != fmt.Sprintf("hostmaster.%s.", conf.SinkholeDomain) {
+		t.Fatalf("expected hostmaster.%s., got %s", conf.SinkholeDomain, got)
 	}
 }
 
-func TestCAAQuery(t *testing.T) {
-	client, addr, config, teardown := queryTestsHelper(t)
-	defer teardown()
-
-	response := exchange(t, client, addr, "example.com.", dns.TypeCAA)
-	if len(response.Answer) != 1 {
-		t.Fatalf("expected 1 answer, god %d", len(response.Answer))
-	}
-	caa, ok := response.Answer[0].(*dns.CAA)
+func checkCAA(t *testing.T, resp *dns.Msg, conf Config) {
+	t.Helper()
+	caa, ok := resp.Answer[0].(*dns.CAA)
 	if !ok {
-		t.Fatalf("expected *dns.CAA, got %T", response.Answer[0])
+		t.Fatalf("expected *dns.CAA, got %T", resp.Answer[0])
 	}
-	if got := caa.Value; got != config.SinkholeDomain {
-		t.Fatalf("expected %s, got %s", config.SinkholeDomain, got)
+	if got := caa.Value; got != conf.SinkholeDomain {
+		t.Fatalf("expected %s, got %s", conf.SinkholeDomain, got)
 	}
 	if got := caa.Tag; got != "issue" {
 		t.Fatalf("expected tag issue, got %s", got)

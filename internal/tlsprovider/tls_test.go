@@ -1,3 +1,11 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package tlsprovider
 
 import (
@@ -20,35 +28,28 @@ func TestGenerateSelfSigned_SaneCertificate(t *testing.T) {
 		ValidFor: 2 * time.Hour,
 	})
 	if err != nil {
-		// failed with error
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
 	if len(cert.Certificate) == 0 {
-		// failed to generate certificate
 		t.Fatalf("expected at least one certificate")
 	}
 	if cert.PrivateKey == nil {
-		// failed to generate private key
 		t.Fatalf("expected PrivateKey to be set")
 	}
 
 	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
-		// failed to parse generated certificate with error
 		t.Fatalf("ParseCertificate: %v", err)
 	}
 
 	if time.Until(leaf.NotAfter) <= 0 {
-		// failed to generate a certificate that is currently valid
 		t.Fatalf("expected certificate to be currently valid")
 	}
 
 	if leaf.KeyUsage&(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment) == 0 {
-		// failed to generate a certificate with appropriate key usage for TLS server
 		t.Fatalf("expected KeyUsage to include digital signature and/or key encipherment, got %v", leaf.KeyUsage)
 	}
 	if len(leaf.ExtKeyUsage) == 0 || leaf.ExtKeyUsage[0] != x509.ExtKeyUsageServerAuth {
-		// failed to generate a certificate with appropriate extended key usage for TLS server
 		t.Fatalf("expected ExtKeyUsage to include server auth, got %v", leaf.ExtKeyUsage)
 	}
 
@@ -69,7 +70,7 @@ func TestGenerateSelfSigned_SaneCertificate(t *testing.T) {
 
 }
 
-func TestTLSConfig_AutoPersistedPair_Reused(t *testing.T) {
+func TestTLSConfig_PersistReuseRegenerate(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := Config{
@@ -95,6 +96,7 @@ func TestTLSConfig_AutoPersistedPair_Reused(t *testing.T) {
 		t.Fatalf("ReadFile(ca): %v", err)
 	}
 
+	// Second load must reuse the persisted pair.
 	_, err = cfg.TLSConfig()
 	if err != nil {
 		t.Fatalf("TLSConfig (second): %v", err)
@@ -122,24 +124,8 @@ func TestTLSConfig_AutoPersistedPair_Reused(t *testing.T) {
 	if !bytes.Equal(ca1, ca2) {
 		t.Fatalf("expected CA to be reused")
 	}
-}
 
-func TestTLSConfig_RegenerateForce(t *testing.T) {
-	dir := t.TempDir()
-
-	cfg := Config{
-		CertFile: filepath.Join(dir, PersistedCertFileName),
-		KeyFile:  filepath.Join(dir, PersistedKeyFileName),
-	}
-
-	if _, err := cfg.TLSConfig(); err != nil {
-		t.Fatalf("TLSConfig (initial): %v", err)
-	}
-	before, err := os.ReadFile(cfg.CertFile)
-	if err != nil {
-		t.Fatalf("ReadFile(cert): %v", err)
-	}
-
+	// Force regeneration must produce a different cert.
 	if err := cfg.Regenerate(); err != nil {
 		t.Fatalf("Regenerate: %v", err)
 	}
@@ -150,18 +136,16 @@ func TestTLSConfig_RegenerateForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(cert, after): %v", err)
 	}
-
-	if bytes.Equal(before, after) {
+	if bytes.Equal(cert1, after) {
 		t.Fatalf("expected cert to be regenerated, but it is identical")
 	}
-}
 
-func TestCertExpired(t *testing.T) {
-	cert, err := GenerateSelfSigned(SelfSignedOptions{})
+	// Freshly generated certs must not be expired.
+	fresh, err := GenerateSelfSigned(SelfSignedOptions{})
 	if err != nil {
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
-	if certExpired(cert) {
+	if certExpired(fresh) {
 		t.Fatalf("freshly generated cert must not be expired")
 	}
 }

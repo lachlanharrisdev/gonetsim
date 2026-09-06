@@ -1,17 +1,20 @@
 package cmd
 
 import (
-	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testutil.Logger()
 }
 
 func disabledAll(cfg *appconfig.Config) {
@@ -104,10 +107,7 @@ func TestParseSets(t *testing.T) {
 func TestResolveTargets(t *testing.T) {
 	t.Run("all enabled", func(t *testing.T) {
 		cfg := appconfig.Default()
-		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
-		if err != nil {
-			t.Fatalf("resolveTargets: %v", err)
-		}
+		resolved := testResolve(t, &cfg, nil, runOptions{})
 		if len(resolved) != len(presetNames) {
 			t.Fatalf("expected %d presets, got %d", len(presetNames), len(resolved))
 		}
@@ -122,23 +122,20 @@ func TestResolveTargets(t *testing.T) {
 			{Name: "off", Enabled: &disabled, Type: "tcp", Listen: "127.0.0.1:0", Handler: "builtin:sink"},
 		}
 
-		resolved, err := resolveTargets(nil, &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
-		if err != nil {
-			t.Fatalf("resolveTargets: %v", err)
-		}
+		resolved := testResolve(t, &cfg, nil, runOptions{})
 		if len(resolved) != 1 {
 			t.Fatalf("expected disabled listener to be skipped, got %d targets", len(resolved))
 		}
 
-		resolved, err = resolveTargets(mustSpecs(t, "off"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
-		if err != nil || len(resolved) != 1 {
-			t.Fatalf("explicit target: %v, %d targets", err, len(resolved))
+		resolved = testResolve(t, &cfg, []string{"off"}, runOptions{})
+		if len(resolved) != 1 {
+			t.Fatalf("explicit target: %d targets", len(resolved))
 		}
 	})
 
 	t.Run("unknown target lists alternatives", func(t *testing.T) {
 		cfg := appconfig.Default()
-		_, err := resolveTargets(mustSpecs(t, "nope"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil))
+		_, err := resolveTargets(mustSpecs(t, "nope"), &cfg, t.TempDir(), t.TempDir(), runOptions{}, testLogger(), state.NewStore(nil), nil)
 		if err == nil || !strings.Contains(err.Error(), "unknown target") ||
 			!strings.Contains(err.Error(), "dns") || !strings.Contains(err.Error(), "handler@addr") {
 			t.Fatalf("expected helpful unknown-target error, got: %v", err)
@@ -147,7 +144,7 @@ func TestResolveTargets(t *testing.T) {
 
 	t.Run("inline lua resolves script", func(t *testing.T) {
 		cfg := appconfig.Default()
-		resolved, err := resolveTargets(mustSpecs(t, "testdata/hello.lua@127.0.0.1:0"), &cfg, t.TempDir(), ".", runOptions{}, testLogger(), state.NewStore(nil))
+		resolved, err := resolveTargets(mustSpecs(t, "testdata/hello.lua@127.0.0.1:0"), &cfg, t.TempDir(), ".", runOptions{}, testLogger(), state.NewStore(nil), nil)
 		if err != nil || len(resolved) != 1 || resolved[0].display != "hello(127.0.0.1:0)" {
 			t.Fatalf("inline lua: %v, %+v", err, resolved)
 		}
@@ -155,7 +152,7 @@ func TestResolveTargets(t *testing.T) {
 
 	t.Run("tls on udp rejected", func(t *testing.T) {
 		cfg := appconfig.Default()
-		_, err := resolveTargets(mustSpecs(t, "sink@:0/udp"), &cfg, t.TempDir(), t.TempDir(), runOptions{tls: true}, testLogger(), state.NewStore(nil))
+		_, err := resolveTargets(mustSpecs(t, "sink@:0/udp"), &cfg, t.TempDir(), t.TempDir(), runOptions{tls: true}, testLogger(), state.NewStore(nil), nil)
 		if err == nil {
 			t.Fatalf("expected --tls on udp to be rejected")
 		}
@@ -164,7 +161,7 @@ func TestResolveTargets(t *testing.T) {
 	t.Run("listen requires single target", func(t *testing.T) {
 		cfg := appconfig.Default()
 		opts := runOptions{listen: "127.0.0.1:1234"}
-		_, err := resolveTargets(mustSpecs(t, "http", "dns"), &cfg, t.TempDir(), t.TempDir(), opts, testLogger(), state.NewStore(nil))
+		_, err := resolveTargets(mustSpecs(t, "http", "dns"), &cfg, t.TempDir(), t.TempDir(), opts, testLogger(), state.NewStore(nil), nil)
 		if err == nil {
 			t.Fatalf("expected --listen with multiple targets to fail")
 		}
@@ -199,11 +196,11 @@ func TestServiceConfigMapping(t *testing.T) {
 
 	t.Run("dns auto ipv4", func(t *testing.T) {
 		cfg := appconfig.DNSConfig{
-			Listen:  "127.0.0.1:0",
-			Network: "udp",
-			IPv4:    "auto",
-			Domain:  "localhost",
-			TXT:     "test",
+			ServiceBase: appconfig.ServiceBase{Listen: "127.0.0.1:0"},
+			Network:     "udp",
+			IPv4:        "auto",
+			Domain:      "localhost",
+			TXT:         "test",
 		}
 		conf, err := dnsConfig(cfg)
 		if err != nil {
@@ -235,4 +232,36 @@ func mustSpecs(t *testing.T, args ...string) []targetSpec {
 		t.Fatalf("parseTargets(%v): %v", args, err)
 	}
 	return specs
+}
+
+func testResolve(t *testing.T, cfg *appconfig.Config, args []string, opts runOptions) []resolvedTarget {
+	t.Helper()
+	var specs []targetSpec
+	if len(args) > 0 {
+		specs = mustSpecs(t, args...)
+	}
+	resolved, err := resolveTargets(specs, cfg, t.TempDir(), t.TempDir(), opts, testLogger(), state.NewStore(nil), nil)
+	if err != nil {
+		t.Fatalf("resolveTargets(%v): %v", args, err)
+	}
+	return resolved
+}
+
+func TestCheckRunDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+
+	if err := checkRunDir(); err != nil {
+		t.Fatalf("checkRunDir: %v", err)
+	}
+	runs, err := capture.DefaultRunsDir()
+	if err != nil {
+		t.Fatalf("DefaultRunsDir: %v", err)
+	}
+	if st, err := os.Stat(runs); err != nil || !st.IsDir() {
+		t.Fatalf("expected runs dir to exist: %v", err)
+	}
+	if filepath.Dir(runs) != filepath.Join(dir, "gonetsim") {
+		t.Fatalf("runs dir = %q, want it under %q", runs, dir)
+	}
 }

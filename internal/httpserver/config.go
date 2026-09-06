@@ -3,33 +3,11 @@ package httpserver
 import (
 	"errors"
 	"fmt"
-	"log/slog"
-	"net/http"
 	"os"
 
-	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
-
-func (s *Server) Name() string {
-	return s.name
-}
-
-type Server struct {
-	name string
-	conf Config
-	srv  *http.Server
-	log  *slog.Logger
-}
-
-func NewService(conf Config, logger *slog.Logger) service.Service {
-	name := "HTTP"
-	if conf.TLS != nil {
-		name = "HTTPS"
-	}
-
-	return &Server{name: name, conf: conf.normalize(), log: service.NewPrefixedLogger(logger, name)}
-}
 
 type Config struct {
 	Addr string
@@ -48,6 +26,9 @@ type Config struct {
 	// root directory to serve files
 	// only used in real mode
 	RootDir string
+
+	// write every connection to the run pcapng file
+	Capture bool
 }
 
 // normalize fills in defaults that can't be expressed as zero values.
@@ -64,8 +45,8 @@ func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("listen addr is required")
 	}
-	if c.StatusCode != 0 && (c.StatusCode < 100 || c.StatusCode > 599) {
-		return fmt.Errorf("status code must be 0 or between 100 and 599, was %d", c.StatusCode)
+	if err := netx.ValidateStatus(c.StatusCode); err != nil {
+		return err
 	}
 	if c.TLS != nil {
 		if err := c.TLS.Validate(); err != nil {

@@ -23,7 +23,8 @@ var scriptCmd = &cobra.Command{
 			return err
 		}
 
-		logger, err := observability.NewLogger(appconfig.Default().Logging)
+		def := appconfig.Default().Logging
+		logger, err := observability.NewLogger(observability.Options{Format: def.LogFormat, Level: def.Level})
 		if err != nil {
 			return err
 		}

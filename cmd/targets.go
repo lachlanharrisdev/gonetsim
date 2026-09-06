@@ -3,15 +3,16 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
 	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
 	"github.com/lachlanharrisdev/gonetsim/internal/dnsserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/httpserver"
 	"github.com/lachlanharrisdev/gonetsim/internal/listener"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
 	"github.com/lachlanharrisdev/gonetsim/internal/state"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
@@ -76,8 +77,8 @@ func parseInlineTarget(arg string) (targetSpec, error) {
 			return targetSpec{}, fmt.Errorf("invalid network %q in %q (must be /tcp or /udp)", suffix, arg)
 		}
 	}
-	if _, err := net.ResolveTCPAddr("tcp", addr); err != nil {
-		return targetSpec{}, fmt.Errorf("invalid listen address %q in %q (expected host:port): %w", addr, arg, err)
+	if _, err := netx.ParseAddr(addr); err != nil {
+		return targetSpec{}, fmt.Errorf("invalid listen address in %q: %w", arg, err)
 	}
 
 	handlerSpec, name, err := resolveInlineHandler(spec)
@@ -153,9 +154,9 @@ type resolvedTarget struct {
 	display string
 }
 
-func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store) ([]resolvedTarget, error) {
+func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store, run *capture.Run) ([]resolvedTarget, error) {
 	if len(specs) == 0 {
-		return resolveAll(cfg, configDir, opts, logger, global)
+		return resolveAll(cfg, configDir, opts, logger, global, run)
 	}
 
 	if opts.listen != "" && len(specs) > 1 {
@@ -164,7 +165,7 @@ func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd st
 
 	out := make([]resolvedTarget, 0, len(specs))
 	for _, spec := range specs {
-		rt, err := resolveOne(spec, cfg, configDir, cwd, opts, logger, global)
+		rt, err := resolveOne(spec, cfg, configDir, cwd, opts, logger, global, run)
 		if err != nil {
 			return nil, err
 		}
@@ -173,13 +174,13 @@ func resolveTargets(specs []targetSpec, cfg *appconfig.Config, configDir, cwd st
 	return out, nil
 }
 
-func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, global *state.Store) ([]resolvedTarget, error) {
+func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, global *state.Store, run *capture.Run) ([]resolvedTarget, error) {
 	out := make([]resolvedTarget, 0, len(presetTargets)+len(cfg.Listeners))
 	for _, p := range presetTargets {
 		if !p.enabled(cfg) {
 			continue
 		}
-		svc, display, err := p.build(cfg, configDir, opts, logger)
+		svc, display, err := p.build(cfg, configDir, opts, logger, run)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +191,7 @@ func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger
 		if !l.IsEnabled() {
 			continue
 		}
-		rt, err := resolveOne(targetSpec{raw: l.Name, kind: targetListener, name: l.Name}, cfg, configDir, "", opts, logger, global)
+		rt, err := resolveOne(targetSpec{raw: l.Name, kind: targetListener, name: l.Name}, cfg, configDir, "", opts, logger, global, run)
 		if err != nil {
 			return nil, err
 		}
@@ -199,14 +200,14 @@ func resolveAll(cfg *appconfig.Config, configDir string, opts runOptions, logger
 	return out, nil
 }
 
-func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store) (resolvedTarget, error) {
+func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, opts runOptions, logger *slog.Logger, global *state.Store, run *capture.Run) (resolvedTarget, error) {
 	switch spec.kind {
 	case targetPreset:
 		for _, p := range presetTargets {
 			if p.name != spec.preset {
 				continue
 			}
-			svc, display, err := p.build(cfg, configDir, opts, logger)
+			svc, display, err := p.build(cfg, configDir, opts, logger, run)
 			if err != nil {
 				return resolvedTarget{}, err
 			}
@@ -232,7 +233,7 @@ func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, o
 		if err := applyListenerRunOptions(&conf, opts, opts.listen); err != nil {
 			return resolvedTarget{}, err
 		}
-		return buildListener(conf, global, logger)
+		return buildListener(conf, global, logger, run)
 
 	case targetInline:
 		conf := spec.inline
@@ -240,10 +241,16 @@ func resolveOne(spec targetSpec, cfg *appconfig.Config, configDir, cwd string, o
 		if err := applyListenerRunOptions(&conf, opts, opts.listen); err != nil {
 			return resolvedTarget{}, err
 		}
-		return buildListener(conf, global, logger)
+		return buildListener(conf, global, logger, run)
 
 	default:
 		return resolvedTarget{}, fmt.Errorf("unknown target kind %d", spec.kind)
+	}
+}
+
+func applyCaptureOptions(noCapture bool, capture *bool) {
+	if noCapture {
+		*capture = false
 	}
 }
 
@@ -260,9 +267,6 @@ func applyListenerRunOptions(conf *listener.Config, opts runOptions, listen stri
 	if opts.noCapture {
 		conf.Capture = false
 	}
-	if opts.artifacts != "" {
-		conf.CaptureDir = opts.artifacts
-	}
 	if opts.tls {
 		if conf.Network != "tcp" {
 			return fmt.Errorf("listener %s: --tls requires a tcp listener", conf.Name)
@@ -273,8 +277,8 @@ func applyListenerRunOptions(conf *listener.Config, opts runOptions, listen stri
 	return nil
 }
 
-func buildListener(conf listener.Config, global *state.Store, logger *slog.Logger) (resolvedTarget, error) {
-	svc, err := listener.NewService(conf, global, logger)
+func buildListener(conf listener.Config, global *state.Store, logger *slog.Logger, run *capture.Run) (resolvedTarget, error) {
+	svc, err := listener.NewService(conf, global, logger, run)
 	if err != nil {
 		return resolvedTarget{}, err
 	}
@@ -292,64 +296,73 @@ func listenerDisplay(conf listener.Config) string {
 	return display + ")"
 }
 
+func presetBuild[AC any, SC any](
+	appCfg AC,
+	opts runOptions,
+	configDir string,
+	logger *slog.Logger,
+	run *capture.Run,
+	setListen func(*AC, string),
+	parse func(AC, string) (SC, error),
+	applyCapture func(*SC),
+	svc func(SC, *slog.Logger, *capture.Run) service.Service,
+	display func(SC) string,
+) (service.Service, string, error) {
+	if opts.listen != "" {
+		setListen(&appCfg, opts.listen)
+	}
+	conf, err := parse(appCfg, configDir)
+	if err != nil {
+		return nil, "", err
+	}
+	applyCapture(&conf)
+	return svc(conf, logger, run), display(conf), nil
+}
+
 var presetTargets = []struct {
 	name    string
 	enabled func(c *appconfig.Config) bool
-	build   func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger) (service.Service, string, error)
+	build   func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, run *capture.Run) (service.Service, string, error)
 }{
 	{
 		name:    "dns",
 		enabled: func(c *appconfig.Config) bool { return c.DNS.Enabled },
-		build: func(c *appconfig.Config, _ string, opts runOptions, logger *slog.Logger) (service.Service, string, error) {
-			if opts.listen != "" {
-				c.DNS.Listen = opts.listen
-			}
-			conf, err := dnsConfig(c.DNS)
-			if err != nil {
-				return nil, "", err
-			}
-			return dnsserver.NewService(conf, logger), fmt.Sprintf("dns(%s/%s)", conf.Addr, netLabel(conf.Net)), nil
+		build: func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, run *capture.Run) (service.Service, string, error) {
+			return presetBuild(c.DNS, opts, configDir, logger, run,
+				func(a *appconfig.DNSConfig, l string) { a.Listen = l },
+				func(a appconfig.DNSConfig, _ string) (dnsserver.Config, error) { return dnsConfig(a) },
+				func(s *dnsserver.Config) { applyCaptureOptions(opts.noCapture, &s.Capture) },
+				dnsserver.NewService,
+				func(s dnsserver.Config) string { return fmt.Sprintf("dns(%s/%s)", s.Addr, netx.DisplayNetwork(s.Net)) },
+			)
 		},
 	},
 	{
 		name:    "http",
 		enabled: func(c *appconfig.Config) bool { return c.HTTP.Enabled },
-		build: func(c *appconfig.Config, _ string, opts runOptions, logger *slog.Logger) (service.Service, string, error) {
-			if opts.listen != "" {
-				c.HTTP.Listen = opts.listen
-			}
-			conf, err := httpConfig(c.HTTP)
-			if err != nil {
-				return nil, "", err
-			}
-			return httpserver.NewService(conf, logger), fmt.Sprintf("http(%s)", conf.Addr), nil
+		build: func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, run *capture.Run) (service.Service, string, error) {
+			return presetBuild(c.HTTP, opts, configDir, logger, run,
+				func(a *appconfig.HTTPConfig, l string) { a.Listen = l },
+				func(a appconfig.HTTPConfig, _ string) (httpserver.Config, error) { return httpConfig(a) },
+				func(s *httpserver.Config) { applyCaptureOptions(opts.noCapture, &s.Capture) },
+				httpserver.NewService,
+				func(s httpserver.Config) string { return fmt.Sprintf("http(%s)", s.Addr) },
+			)
 		},
 	},
 	{
 		name:    "https",
 		enabled: func(c *appconfig.Config) bool { return c.HTTPS.Enabled },
-		build: func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger) (service.Service, string, error) {
-			if opts.listen != "" {
-				c.HTTPS.Listen = opts.listen
-			}
-			conf, err := httpsConfig(c.HTTPS, configDir)
-			if err != nil {
-				return nil, "", err
-			}
-			return httpserver.NewService(conf, logger), fmt.Sprintf("https(%s)", conf.Addr), nil
+		build: func(c *appconfig.Config, configDir string, opts runOptions, logger *slog.Logger, run *capture.Run) (service.Service, string, error) {
+			return presetBuild(c.HTTPS, opts, configDir, logger, run,
+				func(a *appconfig.HTTPSConfig, l string) { a.Listen = l },
+				func(a appconfig.HTTPSConfig, dir string) (httpserver.Config, error) { return httpsConfig(a, dir) },
+				func(s *httpserver.Config) { applyCaptureOptions(opts.noCapture, &s.Capture) },
+				httpserver.NewService,
+				func(s httpserver.Config) string { return fmt.Sprintf("https(%s)", s.Addr) },
+			)
 		},
 	},
-}
-
-func netLabel(net string) string {
-	switch strings.ToLower(strings.TrimSpace(net)) {
-	case "both":
-		return "udp+tcp"
-	case "tcp":
-		return "tcp"
-	default:
-		return "udp"
-	}
 }
 
 func availableTargets(cfg *appconfig.Config) string {

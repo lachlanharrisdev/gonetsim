@@ -98,11 +98,26 @@ name = "irc"
 type = "tcp"
 listen = ":6667"
 handler = "lua:handlers/irc.lua" 
+capture = true
 ```
 
 Run it with `gonetsim run irc`, or skip using a pre-defined config entirely with `gonetsim run lua:handlers/irc.lua@:6667`.
 
 The [`examples/`](examples/) directory has a full sample config plus example IRC and FTP handlers.
+
+<br/>
+
+## Captures
+
+Every run saves everything it handles to a single pcapng file, typically `~/.local/share/gonetsim/runs/<run-id>.pcapng`. GoNetSim prints the path on startup and a packet count on shutdown. Lua handlers can annotate interesting packets with `capture:comment("...")`, which shows up as a packet comment in Wireshark.
+
+```sh
+gonetsim run http --output ./case.pcapng   # choose the capture location
+gonetsim pcap ./case.pcapng                # summarize a capture
+gonetsim check                             # also verifies captures can be written
+```
+
+Two things to know when reading captures: handshakes are synthesized (sequence numbers start at 0, Ethernet MACs are fake, timestamps mark when GoNetSim wrote the frame), and TLS services capture ciphertext, not plaintext.
 
 <br/>
 

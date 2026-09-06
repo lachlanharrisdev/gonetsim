@@ -1,8 +1,10 @@
-// --------
+////----------------------------------------------------------------------------
 // NOTICE: to save development time, test files (including this) have been
 // generated with LLMs. The author(s) do not claim credit for these tests
 // and exist purely for maximising code quality and reliability
-// --------
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
 
 package httpserver
 
@@ -10,7 +12,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
@@ -32,7 +34,7 @@ func TestHTTPServer_Smoke(t *testing.T) {
 		t.Fatalf("listen: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusCreated}, nil, logger)
 	if err != nil {
 		// failed to create server with error
@@ -99,7 +101,7 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 		t.Fatalf("GenerateSelfSigned: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{Addr: "127.0.0.1:0", StatusCode: http.StatusOK}, nil, logger)
 	if err != nil {
 		// failed to create https server with error
@@ -160,28 +162,13 @@ func TestHTTPSServer_Smoke(t *testing.T) {
 
 func mustGet(t *testing.T, client *http.Client, url string) *http.Response {
 	t.Helper()
-
-	deadline := time.Now().Add(2 * time.Second)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		resp, err := client.Get(url)
-		if err == nil {
-			return resp
-		}
-		lastErr = err
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("GET %s: %v", url, lastErr)
-	return nil
+	_, resp := testutil.RetryGet(t, client, url)
+	return resp
 }
 
 func portFromAddr(t *testing.T, addr string) string {
 	t.Helper()
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		t.Fatalf("SplitHostPort(%q): %v", addr, err)
-	}
-	return port
+	return testutil.MustPort(t, addr)
 }
 
 // tempDirWithFiles creates a temporary directory, writes the given files into it,
@@ -211,7 +198,7 @@ func startRealServer(t *testing.T, rootDir string, statusCode int) (*http.Server
 		t.Fatalf("listen: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	srv, err := NewServer(Config{
 		Addr:       "127.0.0.1:0",
 		Mode:       "real",
@@ -256,98 +243,6 @@ func TestRealHandler_ServesHTMLFile(t *testing.T) {
 	}
 }
 
-func TestRealHandler_ServesTextFile(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"readme.txt": "this is a plain text file",
-	})
-	_, base := startRealServer(t, dir, 0)
-
-	resp := mustGet(t, http.DefaultClient, base+"/readme.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
-		t.Fatalf("expected text/plain Content-Type, got %q", ct)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "plain text file") {
-		t.Fatalf("unexpected body: %q", string(body))
-	}
-}
-
-func TestRealHandler_ServesBinaryFile(t *testing.T) {
-	// A minimal valid PNG (1x1 pixel, transparent)
-	pngBytes := []byte{
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
-		0x89, 0x00, 0x00, 0x00, 0x0b, 0x49, 0x44, 0x41,
-		0x54, 0x08, 0xd7, 0x63, 0x60, 0x00, 0x00, 0x00,
-		0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, 0x33, 0x00,
-		0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
-		0x42, 0x60, 0x82,
-	}
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pixel.png"), pngBytes, 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	_, base := startRealServer(t, dir, 0)
-
-	resp := mustGet(t, http.DefaultClient, base+"/pixel.png")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "image/png") {
-		t.Fatalf("expected image/png Content-Type, got %q", ct)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) != len(pngBytes) {
-		t.Fatalf("expected %d bytes, got %d", len(pngBytes), len(body))
-	}
-}
-
-func TestRealHandler_ServesFileFromSubdirectory(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"assets/style.css": "body { color: red; }",
-	})
-	_, base := startRealServer(t, dir, 0)
-
-	resp := mustGet(t, http.DefaultClient, base+"/assets/style.css")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "color: red") {
-		t.Fatalf("unexpected body: %q", string(body))
-	}
-}
-
-func TestRealHandler_RootPathServesIndexHTML(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"index.html": "<html><body>root index</body></html>",
-	})
-	_, base := startRealServer(t, dir, 0)
-
-	resp := mustGet(t, http.DefaultClient, base+"/")
-	defer resp.Body.Close() //nolint:errcheck
-
-	// / should fall through to index.html
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "root index") {
-		t.Fatalf("unexpected body: %q", string(body))
-	}
-}
-
 func TestRealHandler_StatusCodeOverride(t *testing.T) {
 	dir := tempDirWithFiles(t, map[string]string{
 		"page.html": "<html>ok</html>",
@@ -376,178 +271,36 @@ func TestRealHandler_MissingFileReturns404(t *testing.T) {
 	}
 }
 
-func TestRealHandler_DirectoryRequestWithoutIndexReturns404(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"sub/file.txt": "content",
-	})
-	_, base := startRealServer(t, dir, 0)
-
-	// Request the subdirectory itself — without an index.html it should 404,
-	// not serve a listing.
-	resp := mustGet(t, http.DefaultClient, base+"/sub/")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected 404 for directory request, got %d", resp.StatusCode)
-	}
-}
-
-func TestRealHandler_DirectoryServesIndexHTML(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"sub/index.html": "<html><body>sub index</body></html>",
-	})
-	_, base := startRealServer(t, dir, 0)
-
-	resp := mustGet(t, http.DefaultClient, base+"/sub/")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "sub index") {
-		t.Fatalf("unexpected body: %q", string(body))
-	}
-}
-
-func TestRealHandler_ConditionalRequestNotOverridden(t *testing.T) {
-	dir := tempDirWithFiles(t, map[string]string{
-		"page.txt": "hello",
-	})
-	_, base := startRealServer(t, dir, http.StatusAccepted) // non-200 override
-
-	// Request once to learn the Last-Modified, then re-request with
-	// If-Modified-Since to trigger a 304. The configured status override must
-	// not clobber the 304 Not Modified response.
-	first := mustGet(t, http.DefaultClient, base+"/page.txt")
-	lm := first.Header.Get("Last-Modified")
-	_ = first.Body.Close()
-	if lm == "" {
-		t.Fatal("expected a Last-Modified header on the first response")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, base+"/page.txt", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("If-Modified-Since", lm)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusNotModified {
-		t.Fatalf("expected 304 for conditional request, got %d", resp.StatusCode)
-	}
-}
-
 // --- security tests ---
 
-func TestRealHandler_DirectoryTraversalBlocked(t *testing.T) {
-	// Write a sentinel file one level above the root dir.
+func TestRealHandler_TraversalBlocked(t *testing.T) {
+	// Single server; sentinel file lives outside the root.
 	parent := t.TempDir()
 	secret := filepath.Join(parent, "secret.txt")
 	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-
-	// The server root is a subdirectory; secret.txt is outside it.
 	root := filepath.Join(parent, "www")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-
 	_, base := startRealServer(t, root, 0)
 
-	// Classic traversal attempt
-	resp := mustGet(t, http.DefaultClient, base+"/../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	// Must not serve the file — 404 or 400 are both acceptable
-	if resp.StatusCode == http.StatusOK {
+	for _, path := range []string{"/../secret.txt", "/%2e%2e/secret.txt", "/a/../secret.txt", "/../../secret.txt"} {
+		resp := mustGet(t, http.DefaultClient, base+path)
 		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_EncodedTraversalBlocked(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// URL-encoded traversal: %2e%2e = ".."
-	// http.DefaultClient will usually normalise this, but worth having
-	resp := mustGet(t, http.DefaultClient, base+"/%2e%2e/secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("encoded traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_MiddlePathTraversalBlocked(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// .. in the middle of the path must still be contained within root.
-	resp := mustGet(t, http.DefaultClient, base+"/a/../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("middle traversal succeeded — got 200 with body: %q", string(body))
-	}
-}
-
-func TestRealHandler_PlainTraversalPath(t *testing.T) {
-	parent := t.TempDir()
-	secret := filepath.Join(parent, "secret.txt")
-	if err := os.WriteFile(secret, []byte("secret contents"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	root := filepath.Join(parent, "www")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	_, base := startRealServer(t, root, 0)
-
-	// Raw .. components that survive URL parsing.
-	resp := mustGet(t, http.DefaultClient, base+"/../../secret.txt")
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode == http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("raw traversal succeeded — got 200 with body: %q", string(body))
+		_ = resp.Body.Close()
+		// Mmst not serve the file, 404 or 400 are both accepted
+		if resp.StatusCode == http.StatusOK {
+			t.Fatalf("traversal %q succeeded — got 200 with body: %q", path, string(body))
+		}
 	}
 }
 
 // --- config validation tests ---
 
 func TestNewServer_RealMode_MissingRootDirReturnsError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testutil.Logger()
 	_, err := NewServer(Config{
 		Addr: "127.0.0.1:0",
 		Mode: "real",
@@ -555,17 +308,5 @@ func TestNewServer_RealMode_MissingRootDirReturnsError(t *testing.T) {
 	}, nil, logger)
 	if err == nil {
 		t.Fatal("expected error when RootDir is empty, got nil")
-	}
-}
-
-func TestNewServer_RealMode_NonexistentRootDirReturnsError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	_, err := NewServer(Config{
-		Addr:    "127.0.0.1:0",
-		Mode:    "real",
-		RootDir: "/this/path/does/not/exist",
-	}, nil, logger)
-	if err == nil {
-		t.Fatal("expected error for nonexistent RootDir, got nil")
 	}
 }

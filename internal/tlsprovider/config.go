@@ -30,10 +30,14 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	if (c.CertFile == "") != (c.KeyFile == "") { // temu xor
+	if (c.CertFile == "") != (c.KeyFile == "") {
 		return errors.New("cert and key must be set together")
 	}
 	return nil
+}
+
+func DefaultPaths(configDir string) (cert, key string) {
+	return filepath.Join(configDir, PersistedCertFileName), filepath.Join(configDir, PersistedKeyFileName)
 }
 
 func (c Config) TLSConfig() (*tls.Config, error) {
@@ -127,7 +131,6 @@ func (c Config) regeneratePersistedPair() error {
 	return nil
 }
 
-// certExpired reports whether the leaf certificate has passed its NotAfter time
 func certExpired(cert tls.Certificate) bool {
 	if len(cert.Certificate) == 0 {
 		return false

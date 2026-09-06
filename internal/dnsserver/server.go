@@ -8,7 +8,30 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/capture"
+	"github.com/lachlanharrisdev/gonetsim/internal/netx"
+	"github.com/lachlanharrisdev/gonetsim/internal/service"
 )
+
+type Server struct {
+	conf   Config
+	srvs   []*dns.Server
+	log    *slog.Logger
+	run    *capture.Run
+	pconns []*capture.PacketConn
+}
+
+func NewService(conf Config, logger *slog.Logger, run *capture.Run) service.Service {
+	if !conf.Capture {
+		run = nil
+	}
+	return &Server{conf: conf, log: service.NewPrefixedLogger(logger, "DNS"), run: run}
+}
+
+func (s *Server) Name() string {
+	return "DNS"
+}
 
 func NewServers(conf Config, logger *slog.Logger) ([]*dns.Server, error) {
 	h := &handler{
@@ -59,18 +82,37 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.srvs = srvs
 
-	netLabel := strings.ToLower(strings.TrimSpace(s.conf.Net))
-	if netLabel == "both" {
-		netLabel = "udp+tcp"
+	for _, srv := range srvs {
+		iface, err := s.run.NewInterface("gonetsim dns " + srv.Net)
+		if err != nil {
+			return err
+		}
+		switch srv.Net {
+		case "udp":
+			wrapped, err := netx.ListenUDP(s.conf.Addr, s.run, iface, flowIdle)
+			if err != nil {
+				return err
+			}
+			srv.PacketConn = wrapped
+			s.pconns = append(s.pconns, wrapped)
+		case "tcp":
+			ln, err := netx.ListenTCP(s.conf.Addr, s.run, iface, nil)
+			if err != nil {
+				return err
+			}
+			srv.Listener = ln
+		default:
+			return fmt.Errorf("unsupported dns network %q", srv.Net)
+		}
 	}
 
-	logger.Info("listening", "on", s.conf.Addr, "net", netLabel, "sinkhole", sinkholeSummary(s.conf))
+	logger.Info("listening", "on", s.conf.Addr, "net", netx.DisplayNetwork(s.conf.Net), "sinkhole", sinkholeSummary(s.conf))
 
 	errCh := make(chan error, len(srvs))
 	for _, srv := range srvs {
 		srv := srv
 		go func() {
-			errCh <- srv.ListenAndServe()
+			errCh <- srv.ActivateAndServe()
 		}()
 	}
 
@@ -98,6 +140,10 @@ func (s *Server) Stop(ctx context.Context) error {
 			firstErr = err
 		}
 	}
+	for _, pc := range s.pconns {
+		pc.CloseAll()
+	}
+	s.pconns = nil
 	s.srvs = nil
 	return firstErr
 }

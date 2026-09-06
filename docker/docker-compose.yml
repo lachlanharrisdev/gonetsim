@@ -1,38 +1,14 @@
 services:
   gonetsim:
-    # for local, build the image locally with ko, then run it with compose:
-    #   go install github.com/google/ko@v0.18.1
-    #   cd ..
-    #   KO_DOCKER_REPO=gonetsim ko build --local --bare --tags=dev .
-    # then set the image to:
-    #   image: gonetsim:dev
+    # build locally with `KO_DOCKER_REPO=gonetsim ko build --local --bare --tags=dev .`
+    # then set image: gonetsim:dev
     image: ghcr.io/lachlanharrisdev/gonetsim:latest
-
-    # publish the default non-privileged ports
-    # to publish standard ports on the host instead, swap to:
-    #  - "53:53/udp"
-    #  - "53:53/tcp"
-    #  - "80:80"
-    #  - "443:443"
-    # note that updating the configuration file won't change the affected host ports, unlike the standalone binary
     ports:
       - "5353:53/udp"
       - "5353:53/tcp"
       - "8080:80"
       - "8443:443"
-
-    # by default GoNetSim will generate a config file on first start.
-    # if you want to pin the config to /etc/gonetsim/gonetsim.toml, mount it there:
-    # volumes:
-    #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
-
-    # custom listener Lua scripts are resolved relative to the config file's
-    # directory, so mount them alongside it:
     # volumes:
     #   - ../gonetsim.toml:/etc/gonetsim/gonetsim.toml:ro
     #   - ../handlers:/etc/gonetsim/handlers:ro
-
-    # listener capture files are written to ./artifacts inside the container
-    # (i.e. /artifacts); mount a volume there to keep them:
-    # volumes:
-    #   - ./artifacts:/artifacts
+    #   - ./captures:/root/.local/share/gonetsim/runs

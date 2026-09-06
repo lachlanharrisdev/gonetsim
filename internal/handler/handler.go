@@ -17,16 +17,22 @@ import (
 
 type Env struct {
 	Logger      *slog.Logger
-	Capture     *capture.Writer
+	Capture     *capture.Session
 	IdleTimeout time.Duration // connection idle timeout, used by conn:sleep
 	Global      *state.Store
 }
 
-// Handler processes network traffic for a listener.
 type Handler interface {
+	TCPHandler
+	UDPHandler
+}
+
+type TCPHandler interface {
 	// HandleTCP serves a single accepted connection until it is closed.
 	HandleTCP(ctx context.Context, conn net.Conn, env Env) error
+}
 
+type UDPHandler interface {
 	// HandleUDP processes a single datagram and returns an optional reply.
 	HandleUDP(ctx context.Context, data []byte, remote net.Addr, env Env) ([]byte, error)
 }

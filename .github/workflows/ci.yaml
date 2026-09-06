@@ -15,11 +15,8 @@ permissions:
 
 jobs:
   lint:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
     name: golangci-lint
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Install Go
@@ -40,36 +37,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Install Go
-        id: setup-go
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
-      - name: Download Go modules
-        shell: bash
-        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
-        run: go mod download
       - name: go build
-        run: go build
+        run: go build ./...
       - name: go test
-        run: go test -v ./... -race
+        run: go test ./... -race
 
   container:
     name: container-build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
       - name: Install Go
-        id: setup-go
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
-
-      - name: Download Go modules
-        shell: bash
-        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
-        run: go mod download
 
       - name: Install ko
         run: go install github.com/google/ko@v0.18.1
@@ -77,15 +64,9 @@ jobs:
       - name: Set build metadata
         id: meta
         shell: bash
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           short_sha="${GITHUB_SHA::7}"
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" && -n "${PR_NUMBER}" ]]; then
-            version="pr-${PR_NUMBER}-${short_sha}"
-          else
-            version="${GITHUB_REF_NAME}-${short_sha}"
-          fi
+          version="${GITHUB_REF_NAME}-${short_sha}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 

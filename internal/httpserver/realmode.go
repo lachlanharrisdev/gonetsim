@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -97,27 +96,7 @@ func (h RealHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close() //nolint:errcheck
 
-	cap := &statusCaptureWriter{ResponseWriter: w}
-	out := http.ResponseWriter(cap)
-	if h.StatusCode != 0 {
-		out = &statusOverrideWriter{ResponseWriter: cap, status: h.StatusCode}
-	}
-
-	http.ServeContent(out, r, stat.Name(), stat.ModTime(), f)
-
-	status := cap.status
-	if status == 0 {
-		status = http.StatusOK
-	}
-	logger.Info(
-		r.Method,
-		"src", r.RemoteAddr,
-		"to", r.URL.Path,
-		"status", status,
-		"host", r.Host,
-		"ua", r.UserAgent(),
-		"len", fmt.Sprintf("%d", stat.Size()),
-	)
+	serveContent(w, r, stat.Name(), stat.ModTime(), f, h.StatusCode, logger, stat.Size())
 }
 
 // pathWithin reports whether child is inside parent (or equals it), using only

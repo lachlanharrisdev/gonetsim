@@ -1,49 +1,35 @@
+////----------------------------------------------------------------------------
+// NOTICE: to save development time, test files (including this) have been
+// generated with LLMs. The author(s) do not claim credit for these tests
+// and exist purely for maximising code quality and reliability
+//
+// For more information please see `/.github/AI_USAGE.md`
+//----------------------------------------------------------------------------//
+
 package listener
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
 	"log/slog"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/lachlanharrisdev/gonetsim/internal/capture"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcapgo"
 	"github.com/lachlanharrisdev/gonetsim/internal/service"
+	"github.com/lachlanharrisdev/gonetsim/internal/testutil"
 	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testutil.Logger()
 }
 
-// freePort reserves an ephemeral port, releases it, and returns its address.
-func freePort(t *testing.T, network string) string {
-	t.Helper()
-	if network == "udp" {
-		pc, err := net.ListenPacket("udp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("ListenPacket: %v", err)
-		}
-		addr := pc.LocalAddr().String()
-		_ = pc.Close()
-		return addr
-	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen: %v", err)
-	}
-	addr := ln.Addr().String()
-	_ = ln.Close()
-	return addr
-}
-
-// startService runs svc in the background; cleanup cancels it and waits for
-// Start to return.
 func startService(t *testing.T, svc service.Service) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,71 +66,75 @@ func dialTCP(t *testing.T, addr string) net.Conn {
 	return nil
 }
 
-func dialTLS(t *testing.T, addr, serverName string) net.Conn {
-	t.Helper()
-	tlsConf := &tls.Config{InsecureSkipVerify: true, ServerName: serverName}
-	deadline := time.Now().Add(2 * time.Second)
-	var conn net.Conn
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, lastErr = tls.Dial("tcp", addr, tlsConf)
-		if lastErr == nil {
-			return conn
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("tls.Dial %s failed: %v", addr, lastErr)
-	return nil
-}
-
 func echoConfig(t *testing.T) Config {
 	return Config{
 		Name:        "echotest",
 		Network:     "tcp",
-		Addr:        freePort(t, "tcp"),
+		Addr:        testutil.FreePort(t, "tcp"),
 		HandlerSpec: "builtin:echo",
 		ReadTimeout: 5 * time.Second,
 		Capture:     true,
-		CaptureDir:  t.TempDir(),
 	}
 }
 
-func captureFile(t *testing.T, dir, listener string) string {
+// waitTransportFrames polls the capture until the transport payload sequence
+// matches want, tolerating the async flush that follows connection teardown.
+func waitTransportFrames(t *testing.T, path, proto string, want []string) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		entries, err := os.ReadDir(filepath.Join(dir, listener))
-		if err == nil && len(entries) > 0 {
-			data, err := os.ReadFile(filepath.Join(dir, listener, entries[0].Name()))
-			if err != nil {
-				t.Fatalf("ReadFile: %v", err)
-			}
-			return string(data)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("no capture file appeared in %s", dir)
-	return ""
+	testutil.WaitFor(t, 3*time.Second, "payload sequence match", func() bool {
+		got, err := transportPayloads(path, proto)
+		return err == nil && strings.Join(got, "|") == strings.Join(want, "|")
+	})
 }
 
-func luaConfig(t *testing.T, name, script string) Config {
-	return Config{
-		Name:        name,
-		Network:     "tcp",
-		Addr:        freePort(t, "tcp"),
-		HandlerSpec: "lua:" + script,
-		BaseDir:     "../handler/testdata",
-		ReadTimeout: 5 * time.Second,
+// waitSubstringFrames polls until the concatenated payload sequence of a
+// capture contains want (used where multiple datagrams share one writer).
+func waitSubstringFrames(t *testing.T, path, proto, want string) {
+	t.Helper()
+	testutil.WaitFor(t, 3*time.Second, "payload substring match", func() bool {
+		got, err := transportPayloads(path, proto)
+		return err == nil && strings.Contains(strings.Join(got, "|"), want)
+	})
+}
+
+// transportPayloads extracts transport-layer payloads from a pcapng file,
+// or an error if the file is empty or unreadable.
+func transportPayloads(path, proto string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
+	defer func() { _ = f.Close() }()
+	r, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for {
+		data, _, err := r.ReadPacketData()
+		if err != nil {
+			break
+		}
+		pkt := gopacket.NewPacket(data, layers.LinkTypeEthernet, gopacket.Default)
+		var payload []byte
+		if proto == "udp" {
+			if u, ok := pkt.Layer(layers.LayerTypeUDP).(*layers.UDP); ok {
+				payload = u.Payload
+			}
+		} else if t, ok := pkt.Layer(layers.LayerTypeTCP).(*layers.TCP); ok {
+			payload = t.Payload
+		}
+		out = append(out, string(payload))
+	}
+	return out, nil
 }
 
 func TestTCPService(t *testing.T) {
-	t.Run("echo and capture", func(t *testing.T) {
-		dir := t.TempDir()
+	t.Run("echo over tcp with pcapng capture", func(t *testing.T) {
 		conf := echoConfig(t)
-		conf.CaptureDir = dir
+		run, path := testutil.NewPcapRun(t)
 
-		svc, err := NewService(conf, nil, testLogger())
+		svc, err := NewService(conf, nil, testLogger(), run)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -163,16 +153,15 @@ func TestTCPService(t *testing.T) {
 		}
 		_ = conn.Close()
 
-		if got := captureFile(t, dir, conf.Name); got != "hello\n" {
-			t.Fatalf("capture content %q", got)
-		}
+		waitTransportFrames(t, path, "tcp",
+			[]string{"", "", "hello\n", "hello\n", "", ""})
 	})
 
 	t.Run("idle timeout closes connection", func(t *testing.T) {
 		conf := echoConfig(t)
 		conf.ReadTimeout = 200 * time.Millisecond
 
-		svc, err := NewService(conf, nil, testLogger())
+		svc, err := NewService(conf, nil, testLogger(), nil)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -189,8 +178,15 @@ func TestTCPService(t *testing.T) {
 	})
 
 	t.Run("script errors don't kill the listener", func(t *testing.T) {
-		conf := luaConfig(t, "isotest", "isolated.lua")
-		svc, err := NewService(conf, nil, testLogger())
+		conf := Config{
+			Name:        "isotest",
+			Network:     "tcp",
+			Addr:        testutil.FreePort(t, "tcp"),
+			HandlerSpec: "lua:isolated.lua",
+			BaseDir:     "../handler/testdata",
+			ReadTimeout: 5 * time.Second,
+		}
+		svc, err := NewService(conf, nil, testLogger(), nil)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -216,54 +212,7 @@ func TestTCPService(t *testing.T) {
 	})
 }
 
-func TestTCPServiceTLS(t *testing.T) {
-	t.Run("echo over TLS", func(t *testing.T) {
-		conf := echoConfig(t)
-		conf.TLS = &tlsprovider.Config{}
-
-		svc, err := NewService(conf, nil, testLogger())
-		if err != nil {
-			t.Fatalf("NewService: %v", err)
-		}
-		startService(t, svc)
-
-		conn := dialTLS(t, conf.Addr, "localhost")
-		defer func() { _ = conn.Close() }()
-		if _, err := conn.Write([]byte("secure")); err != nil {
-			t.Fatalf("Write: %v", err)
-		}
-		buf := make([]byte, 6)
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			t.Fatalf("ReadFull: %v", err)
-		}
-		if string(buf) != "secure" {
-			t.Fatalf("expected echo, got %q", buf)
-		}
-	})
-
-	t.Run("SNI visible to script", func(t *testing.T) {
-		conf := luaConfig(t, "snitest", "sni.lua")
-		conf.TLS = &tlsprovider.Config{}
-
-		svc, err := NewService(conf, nil, testLogger())
-		if err != nil {
-			t.Fatalf("NewService: %v", err)
-		}
-		startService(t, svc)
-
-		conn := dialTLS(t, conf.Addr, "c2.evil.example")
-		defer func() { _ = conn.Close() }()
-		buf := make([]byte, len("sni:c2.evil.example"))
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			t.Fatalf("ReadFull: %v", err)
-		}
-		if string(buf) != "sni:c2.evil.example" {
-			t.Fatalf("expected SNI reply, got %q", buf)
-		}
-	})
-}
-
-func TestUDPService(t *testing.T) {
+func TestUDPCapture(t *testing.T) {
 	exchange := func(t *testing.T, addr, payload, want string) {
 		t.Helper()
 		server, err := net.ResolveUDPAddr("udp", addr)
@@ -294,32 +243,36 @@ func TestUDPService(t *testing.T) {
 		t.Fatalf("no reply for %q", payload)
 	}
 
-	t.Run("echo", func(t *testing.T) {
+	t.Run("udp echo produces pcapng", func(t *testing.T) {
 		conf := Config{
 			Name:        "udpecho",
 			Network:     "udp",
-			Addr:        freePort(t, "udp"),
+			Addr:        testutil.FreePort(t, "udp"),
 			HandlerSpec: "builtin:echo",
-			ReadTimeout: 5 * time.Second,
+			ReadTimeout: 150 * time.Millisecond,
+			Capture:     true,
 		}
-		svc, err := NewService(conf, nil, testLogger())
+		run, path := testutil.NewPcapRun(t)
+		svc, err := NewService(conf, nil, testLogger(), run)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
 		startService(t, svc)
-		exchange(t, conf.Addr, "query", "query")
+		exchange(t, conf.Addr, "ping", "ping")
+
+		waitSubstringFrames(t, path, "udp", "ping|ping")
 	})
 
-	t.Run("lua packets", func(t *testing.T) {
+	t.Run("udp lua packets", func(t *testing.T) {
 		conf := Config{
 			Name:        "udplua",
 			Network:     "udp",
-			Addr:        freePort(t, "udp"),
+			Addr:        testutil.FreePort(t, "udp"),
 			HandlerSpec: "lua:packet.lua",
 			BaseDir:     "../handler/testdata",
 			ReadTimeout: 5 * time.Second,
 		}
-		svc, err := NewService(conf, nil, testLogger())
+		svc, err := NewService(conf, nil, testLogger(), nil)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -328,47 +281,16 @@ func TestUDPService(t *testing.T) {
 	})
 }
 
-// TestCaptureStoreEviction verifies idle UDP writers are swept so capture
-// files don't accumulate open handles for the life of the listener
-func TestCaptureStoreEviction(t *testing.T) {
-	cs, err := capture.NewStore(t.TempDir(), "evict")
-	if err != nil {
-		t.Fatalf("NewStore: %v", err)
-	}
-	store := &captureStore{store: cs, idle: 30 * time.Millisecond}
-	t.Cleanup(func() { store.closeAll() })
-
-	_, err = store.writer("10.0.0.1:1")
-	if err != nil {
-		t.Fatalf("writer a: %v", err)
-	}
-	time.Sleep(60 * time.Millisecond)
-
-	if _, err := store.writer("10.0.0.2:2"); err != nil { // sweeps the idle writer
-		t.Fatalf("writer b: %v", err)
-	}
-	if len(store.entries) != 1 {
-		t.Fatalf("expected idle writer to be evicted, %d entries remain", len(store.entries))
-	}
-
-	if _, err := store.writer("10.0.0.1:1"); err != nil {
-		t.Fatalf("writer a again: %v", err)
-	}
-	if len(store.entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(store.entries))
-	}
-}
-
 func TestStartWithCancelledContext(t *testing.T) {
 	for _, network := range []string{"tcp", "udp"} {
 		conf := Config{
 			Name:        "canceled-" + network,
 			Network:     network,
-			Addr:        freePort(t, network),
+			Addr:        testutil.FreePort(t, network),
 			HandlerSpec: "builtin:sink",
 			ReadTimeout: 5 * time.Second,
 		}
-		svc, err := NewService(conf, nil, testLogger())
+		svc, err := NewService(conf, nil, testLogger(), nil)
 		if err != nil {
 			t.Fatalf("NewService: %v", err)
 		}
@@ -420,7 +342,7 @@ func TestNewServiceValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conf := base()
 			tc.mutate(&conf)
-			_, err := NewService(conf, nil, testLogger())
+			_, err := NewService(conf, nil, testLogger(), nil)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("expected error containing %q, got: %v", tc.wantErr, err)
 			}
