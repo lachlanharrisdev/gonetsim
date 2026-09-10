@@ -64,4 +64,4 @@ jobs:
           KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gonetsim
         shell: bash
         run: |
-          ko build --bare --platform=linux/amd64,linux/arm64 --push=false .
+          ko build --bare --platform=linux/amd64,linux/arm64 --push=false ./cmd/gonetsim
