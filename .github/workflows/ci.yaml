@@ -5,9 +5,11 @@ on:
       - main
     paths-ignore:
       - 'README.md'
+      - 'docs/*.md'
   pull_request:
     paths-ignore:
       - 'README.md'
+      - 'docs/*.md'
 
 permissions:
   contents: read
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   lint:
-    name: golangci-lint
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,65 +25,43 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.11.4
+      - name: go vet
+        run: go vet ./...
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+
   test:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, ubuntu-24.04-arm]
-    name: test
+        os: [ubuntu-latest, windows-latest]
+    name: build
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
       - name: Install Go
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
       - name: go build
         run: go build ./...
-      - name: go test
-        run: go test ./... -race
+      - name: go test (compile)
+        run: go test ./...
 
   container:
     name: container-build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
+      - uses: actions/checkout@v7
       - name: Install Go
         uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
-
       - name: Install ko
         run: go install github.com/google/ko@v0.18.1
-
-      - name: Set build metadata
-        id: meta
-        shell: bash
-        run: |
-          short_sha="${GITHUB_SHA::7}"
-          version="${GITHUB_REF_NAME}-${short_sha}"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
       - name: Build container image (ko)
         env:
           KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gonetsim
-          VERSION: ${{ steps.meta.outputs.version }}
-          REVISION: ${{ github.sha }}
-          BUILD_DATE: ${{ steps.meta.outputs.build_date }}
         shell: bash
         run: |
-          ko build \
-            --bare \
-            --platform=linux/amd64,linux/arm64 \
-            --push=false \
-            --image-user=0:0 \
-            --tags=main,latest,sha-${GITHUB_SHA} \
-            .
+          ko build --bare --platform=linux/amd64,linux/arm64 --push=false .

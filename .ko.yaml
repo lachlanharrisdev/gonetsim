@@ -7,7 +7,7 @@ defaultPlatforms:
 builds:
   - id: gonetsim
     dir: .
-    main: .
+    main: ./cmd/gonetsim
     env:
       - CGO_ENABLED=0
     flags:

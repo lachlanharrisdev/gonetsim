@@ -13,25 +13,14 @@ var (
 	Date     = "unknown"
 )
 
-func GetVersion() string {
-	return fmt.Sprintf(`Version: %s
-Revision: %s
-Date: %s
-OS: %s
-Arch: %s`, Version, Revision, Date, runtime.GOOS, runtime.GOARCH)
-}
-
-// alternative that returns a single line string
-func GetVersionLine() string {
-	return fmt.Sprintf("%s (%s %s)", Version, runtime.GOOS, runtime.GOARCH)
-}
-
 var versionCmd = &cobra.Command{
-	Use: "version",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(GetVersion())
-	},
+	Use:   "version",
 	Short: "Show version info",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		_, err := fmt.Fprintf(cmd.OutOrStdout(), "Version: %s\nRevision: %s\nDate: %s\nOS: %s\nArch: %s\n",
+			Version, Revision, Date, runtime.GOOS, runtime.GOARCH)
+		return err
+	},
 }
 
 func init() {

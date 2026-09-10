@@ -10,65 +10,64 @@ import (
 	"path/filepath"
 	"time"
 
-	appconfig "github.com/lachlanharrisdev/gonetsim/internal/config"
-	"github.com/lachlanharrisdev/gonetsim/internal/tlsprovider"
 	"github.com/spf13/cobra"
+
+	"github.com/lachlanharrisdev/gonetsim/internal/tlscert"
 )
 
-var tlsVerifyOnly bool
-var tlsForce bool
+var (
+	tlsDir        string
+	tlsForce      bool
+	tlsVerifyOnly bool
+)
 
 var tlsCmd = &cobra.Command{
 	Use:   "tls",
 	Short: "Generate and verify persisted TLS certificates",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfgRes, err := appconfig.LoadOrCreate(rootConfigPath)
-		if err != nil {
-			return err
-		}
-		configDir := filepath.Dir(cfgRes.Path)
-
-		certPath := filepath.Join(configDir, tlsprovider.PersistedCertFileName)
-		keyPath := filepath.Join(configDir, tlsprovider.PersistedKeyFileName)
-		caPath := filepath.Join(configDir, tlsprovider.PersistedCAFileName)
-
-		conf := &tlsprovider.Config{CertFile: certPath, KeyFile: keyPath}
-
-		if tlsForce {
-			if err := conf.Regenerate(); err != nil {
-				return err
-			}
-		}
-
-		if !tlsVerifyOnly {
-			if _, err := conf.TLSConfig(); err != nil {
-				return err
-			}
-		}
-
-		if err := verifyKeyPair(certPath, keyPath, caPath); err != nil {
-			return err
-		}
-
-		expIRY, err := certExpiry(certPath)
-		if err != nil {
-			return err
-		}
-
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TLS OK\ncert:   %s\nkey:    %s\nca:     %s\nexpiry: %s\n", certPath, keyPath, caPath, expIRY.Format(time.RFC3339)); err != nil {
-			return err
-		}
-		return nil
-	},
+	RunE:  runTLS,
 }
 
 func init() {
 	rootCmd.AddCommand(tlsCmd)
-	tlsCmd.Flags().BoolVar(&tlsVerifyOnly, "verify-only", false, "verify existing files without generating")
-	tlsCmd.Flags().BoolVar(&tlsForce, "force", false, "regenerate the persisted certificate pair even if it already exists")
+	flags := tlsCmd.Flags()
+	flags.StringVar(&tlsDir, "dir", "./tls", "directory to store the certificate pair and CA")
+	flags.BoolVar(&tlsForce, "force", false, "regenerate the certificate pair even if it exists")
+	flags.BoolVar(&tlsVerifyOnly, "verify-only", false, "verify existing files without generating")
 }
 
-// certExpiry returns the NotAfter time of the leaf certificate at certPath
+func runTLS(cmd *cobra.Command, _ []string) error {
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return err
+	}
+	certPath := filepath.Join(tlsDir, tlscert.PersistedCertFileName)
+	keyPath := filepath.Join(tlsDir, tlscert.PersistedKeyFileName)
+	caPath := filepath.Join(tlsDir, tlscert.PersistedCAFileName)
+
+	conf := tlscert.Config{CertFile: certPath, KeyFile: keyPath}
+	if tlsForce {
+		if err := conf.Regenerate(); err != nil {
+			return err
+		}
+	}
+	if !tlsVerifyOnly {
+		if _, err := conf.TLSConfig(); err != nil {
+			return err
+		}
+	}
+	if err := verifyKeyPair(certPath, keyPath, caPath); err != nil {
+		return err
+	}
+	expiry, err := certExpiry(certPath)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "TLS OK\ncert:   %s\nkey:    %s\nca:     %s\nexpiry: %s\n",
+		certPath, keyPath, caPath, expiry.Format(time.RFC3339))
+	return err
+}
+
+// certExpiry returns the NotAfter time of the leaf certificate at certPath.
 func certExpiry(certPath string) (time.Time, error) {
 	raw, err := os.ReadFile(certPath)
 	if err != nil {
@@ -117,9 +116,6 @@ func verifyKeyPair(certPath, keyPath, caPath string) error {
 	if leaf.KeyUsage&(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment) == 0 {
 		return fmt.Errorf("unexpected leaf KeyUsage: %v", leaf.KeyUsage)
 	}
-	if len(leaf.ExtKeyUsage) == 0 {
-		return errors.New("leaf ExtKeyUsage is empty")
-	}
 	serverAuth := false
 	for _, eku := range leaf.ExtKeyUsage {
 		if eku == x509.ExtKeyUsageServerAuth {
@@ -131,7 +127,6 @@ func verifyKeyPair(certPath, keyPath, caPath string) error {
 		return errors.New("leaf ExtKeyUsage does not include ServerAuth")
 	}
 
-	// If a CA file exists, ensure the leaf verifies against it.
 	caBytes, err := os.ReadFile(caPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -146,6 +141,5 @@ func verifyKeyPair(certPath, keyPath, caPath string) error {
 	if _, err := leaf.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
 		return fmt.Errorf("leaf does not verify against CA: %w", err)
 	}
-
 	return nil
 }
