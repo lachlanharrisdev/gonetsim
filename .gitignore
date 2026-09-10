@@ -34,6 +34,7 @@ dist/
 
 # build files
 gonetsim
+!cmd/gonetsim
 bin/
 
 # runtime output
