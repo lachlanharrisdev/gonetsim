@@ -1,30 +1,19 @@
-# This is an example .goreleaser.yaml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-
-# The lines below are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/need to use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
-
 project_name: GoNetSim
 version: 2
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
-    - go generate ./...
 
 builds:
   - id: gonetsim
-    main: .
+    main: ./cmd/gonetsim
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - windows
-#      - darwin
+      - darwin
     ldflags:
       - -s -w
       - -X github.com/lachlanharrisdev/gonetsim/cmd.Version={{.Version}}
@@ -33,7 +22,6 @@ builds:
 
 archives:
   - formats: tar.gz
-    # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -41,7 +29,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
     format_overrides:
       - goos: windows
         formats: zip
@@ -50,52 +37,46 @@ checksum:
   name_template: "checksums.txt"
 
 changelog:
-    use: github
-    abbrev: 7
-    groups:
-        - title: "Features"
-          regexp: '^feat(\(.+\))?:'
-          order: 0
-        - title: "Bug Fixes"
-          regexp: '^fix(\(.+\))?:'
-          order: 1
-        - title: "Uncategorized"
-          order: 999
-    filters:
-        exclude:
-            - '^docs(\(.+\))?:'
-            - '^test(\(.+\))?:'
-            - '^refactor(\(.+\))?:'
-            - '^chore(\(.+\))?:'
-            - '^refc(\(.+\))?:'
+  use: github
+  abbrev: 7
+  groups:
+    - title: "Features"
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: "Uncategorized"
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\(.+\))?:'
+      - '^test(\(.+\))?:'
+      - '^refactor(\(.+\))?:'
+      - '^chore(\(.+\))?:'
 
 release:
-    github:
-        owner: lachlanharrisdev
-        name: gonetsim
-    draft: false
-    replace_existing_draft: false
-    use_existing_draft: false
-    replace_existing_artifacts: false
+  github:
+    owner: lachlanharrisdev
+    name: gonetsim
+  draft: false
+  replace_existing_draft: false
+  use_existing_draft: false
+  replace_existing_artifacts: false
 
-    name_template: "{{ .Tag }}"
-    header: |
-        # GoNetSim {{ .Version }}
+  name_template: "{{ .Tag }}"
+  header: |
+    # GoNetSim {{ .Version }}
 
-        **Release Date:** {{ .Date }}
-        **Latest Included Commit:** {{ .ShortCommit }}
-        **Download URL:** {{ .ReleaseURL }}
+    **Release Date:** {{ .Date }}
+    **Latest Included Commit:** {{ .ShortCommit }}
+    **Download URL:** {{ .ReleaseURL }}
 
-        ---
-    footer: |
-        ---
+    ---
+  footer: |
+    ---
 
-        ## Installation
+    ## Resources
 
-        Please refer to the [Installation Guide](https://gonetsim.lachlanharris.au/guides/installation)
-
-        ### Resources
-
-        - [Documentation](https://gonetsim.lachlanharris.au/)
-        - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)
-        - [Discussions](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/discussions)
+    - [Documentation](https://gonetsim.lachlanharris.au/)
+    - [Report Issues](https://github.com/{{ .Env.GITHUB_REPOSITORY }}/issues)

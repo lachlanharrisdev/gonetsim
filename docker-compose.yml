@@ -1,0 +1,19 @@
+# The image is built on main by CI (ghcr.io/lachlanharrisdev/gonetsim:latest)
+# or locally with: 
+#   KO_DOCKER_REPO=gonetsim ko build --local --bare --tags=dev .
+
+services:
+  gonetsim:
+    image: ghcr.io/lachlanharrisdev/gonetsim:latest
+    command:
+      - /handlers/irc.lua@:6667
+      - --pcap
+      - /runs/case.pcapng
+    volumes:
+      - ./handlers:/handlers:ro
+      - ./runs:/runs
+    ports:
+      - "6667:6667"
+    # add more listeners, e.g.:
+    #   - "/handlers/smtp.lua@:2525"
+    #   - "sink@:9999/udp"
