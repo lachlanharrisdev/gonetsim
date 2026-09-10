@@ -62,6 +62,9 @@ jobs:
       - name: Build container image (ko)
         env:
           KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gonetsim
+          VERSION: dev-${{ github.sha }}
+          REVISION: ${{ github.sha }}
         shell: bash
         run: |
+          export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           ko build --bare --platform=linux/amd64,linux/arm64 --push=false ./cmd/gonetsim
